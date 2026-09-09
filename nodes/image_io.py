@@ -17,11 +17,11 @@ class SaveImageSequence(io.ComfyNode):
             display_name="Save Image Sequence",
             category="MHNodes/image",
             description=(
-                "Saves an image batch to an arbitrary filesystem path. A single image is written "
-                "to the path as given; a batch is written as <stem>-0, <stem>-1, ... with the "
-                "index zero-padded to index_padding digits. The extension comes from the filetype "
-                "widget, and missing parent directories are created. PNG output embeds the "
-                "workflow metadata."
+                "Saves an image batch to an arbitrary filesystem path as <stem>-0, <stem>-1, ... "
+                "with the index zero-padded to index_padding digits. Every image gets an index, "
+                "including a batch of one, so incremental renders keep a consistent sequence. The "
+                "extension comes from the filetype widget, and missing parent directories are "
+                "created. PNG output embeds the workflow metadata."
             ),
             inputs=[
                 io.Image.Input("image", tooltip="Image or image batch to save."),
@@ -47,7 +47,7 @@ class SaveImageSequence(io.ComfyNode):
                     max=12,
                     step=1,
                     tooltip=(
-                        "Zero-padding width for the batch index suffix, e.g. 5 gives "
+                        "Zero-padding width for the index suffix every image gets, e.g. 5 gives "
                         "image-00000. Set to 0 for an unpadded index."
                     ),
                 ),
@@ -78,15 +78,10 @@ class SaveImageSequence(io.ComfyNode):
             base_path = base_path.with_suffix("")
         base_path = base_path.with_name(f"{base_path.name}.{filetype}")
 
-        batch_size = image.shape[0]
-
-        if batch_size == 1:
-            targets = [(image[0], base_path)]
-        else:
-            targets = [
-                (frame, base_path.with_stem(f"{base_path.stem}-{i:0{index_padding}d}"))
-                for i, frame in enumerate(image)
-            ]
+        targets = [
+            (frame, base_path.with_stem(f"{base_path.stem}-{i:0{index_padding}d}"))
+            for i, frame in enumerate(image)
+        ]
 
         written: list[str] = []
         for frame, target in targets:
