@@ -1,0 +1,14 @@
+[project]
+name = "comfyui-mhnodes"
+version = "0.1.0"
+description = "Simple, general-purpose custom nodes for ComfyUI."
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/mh/ComfyUI-MHNodes"
+
+[tool.comfy]
+DisplayName = "MHNodes"
+PublisherId = ""
