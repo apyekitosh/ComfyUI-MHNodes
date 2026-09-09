@@ -9,6 +9,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | --- | --- | --- |
 | **Save Image Sequence** | `MHNodes/image` | Saves an image batch to an arbitrary filesystem path, with optional skip-if-exists. |
 | **Linear Gradient from Coords** | `MHNodes/generate` | Generates a black-to-white linear gradient defined by two points. |
+| **Crop Image and Mask** | `MHNodes/image` | Crops an image and/or a mask to a fixed size by alignment and offset, returning paste coordinates. |
 
 Per-node documentation lives in [`docs/`](docs).
 
@@ -34,6 +35,7 @@ ComfyUI-MHNodes/
   __init__.py        # ComfyExtension + comfy_entrypoint()
   nodes/
     __init__.py      # re-exports every node class
+    crop.py          # cropping
     gradient.py      # generators
     image_io.py      # file I/O
     utils.py         # shared tensor/PIL helpers
