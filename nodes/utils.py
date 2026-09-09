@@ -11,6 +11,13 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
 
+#: Output formats offered by the save nodes, in menu order.
+FILETYPES = ("png", "jpg", "jpeg", "webp", "tiff", "bmp")
+
+#: Formats that cannot carry an alpha channel.
+_NO_ALPHA = (".jpg", ".jpeg", ".bmp")
+
+
 def tensor2pil(image: torch.Tensor) -> Image.Image:
     """Convert a single HWC float tensor in [0, 1] to a PIL image."""
     if image.ndim != 3:
@@ -58,15 +65,19 @@ def save_image_to_path(
     extra_pnginfo: dict | None = None,
     compress_level: int = 4,
 ) -> Path:
-    """Write a single [H,W,C] image tensor to an arbitrary filesystem path."""
+    """Write a single [H,W,C] image tensor to an arbitrary filesystem path.
+
+    The format is taken from the path's extension; only PNG carries the workflow metadata.
+    """
     pil_image = tensor2pil(image)
     path.parent.mkdir(parents=True, exist_ok=True)
+    suffix = path.suffix.lower()
 
-    if path.suffix.lower() in (".png", ""):
+    if suffix in (".png", ""):
         pil_image.save(path, format="PNG", pnginfo=build_png_metadata(prompt, extra_pnginfo),
                        compress_level=compress_level)
     else:
-        if pil_image.mode == "RGBA" and path.suffix.lower() in (".jpg", ".jpeg"):
+        if pil_image.mode == "RGBA" and suffix in _NO_ALPHA:
             pil_image = pil_image.convert("RGB")
         pil_image.save(path)
 

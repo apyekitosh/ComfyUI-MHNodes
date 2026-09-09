@@ -6,29 +6,49 @@ from pathlib import Path
 
 from comfy_api.latest import io
 
-from .utils import save_image_to_path
+from .utils import FILETYPES, save_image_to_path
 
 
 class SaveImageSequence(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MHNodes_SaveImageSequence",
+            node_id="MH_SaveImageSequence",
             display_name="Save Image Sequence",
             category="MHNodes/image",
             description=(
                 "Saves an image batch to an arbitrary filesystem path. A single image is written "
-                "to the path as given; a batch is written as <stem>-0, <stem>-1, ... Missing "
-                "parent directories are created. PNG output embeds the workflow metadata."
+                "to the path as given; a batch is written as <stem>-0, <stem>-1, ... with the "
+                "index zero-padded to index_padding digits. The extension comes from the filetype "
+                "widget, and missing parent directories are created. PNG output embeds the "
+                "workflow metadata."
             ),
             inputs=[
                 io.Image.Input("image", tooltip="Image or image batch to save."),
                 io.String.Input(
                     "path",
-                    default="./image.png",
+                    default="./image",
                     tooltip=(
-                        "Output file path. Relative paths resolve against the ComfyUI working "
-                        "directory. Batches get a -<index> suffix before the extension."
+                        "Output file path, without extension. Relative paths resolve against the "
+                        "ComfyUI working directory. Any extension typed here is replaced by the "
+                        "filetype widget."
+                    ),
+                ),
+                io.Combo.Input(
+                    "filetype",
+                    options=list(FILETYPES),
+                    default="png",
+                    tooltip="Output format. Only png embeds the prompt and workflow metadata.",
+                ),
+                io.Int.Input(
+                    "index_padding",
+                    default=5,
+                    min=0,
+                    max=12,
+                    step=1,
+                    tooltip=(
+                        "Zero-padding width for the batch index suffix, e.g. 5 gives "
+                        "image-00000. Set to 0 for an unpadded index."
                     ),
                 ),
                 io.Boolean.Input(
@@ -48,15 +68,23 @@ class SaveImageSequence(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, image, path: str, overwrite: bool) -> io.NodeOutput:
+    def execute(cls, image, path: str, filetype: str, index_padding: int, overwrite: bool):
         base_path = Path(path)
+        if not base_path.name:
+            raise ValueError(f"path must include a filename, got {path!r}")
+
+        # The filetype widget owns the extension; drop whatever was typed into the path.
+        if base_path.suffix.lower().lstrip(".") in FILETYPES:
+            base_path = base_path.with_suffix("")
+        base_path = base_path.with_name(f"{base_path.name}.{filetype}")
+
         batch_size = image.shape[0]
 
         if batch_size == 1:
             targets = [(image[0], base_path)]
         else:
             targets = [
-                (frame, base_path.with_stem(f"{base_path.stem}-{i}"))
+                (frame, base_path.with_stem(f"{base_path.stem}-{i:0{index_padding}d}"))
                 for i, frame in enumerate(image)
             ]
 
