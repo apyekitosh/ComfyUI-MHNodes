@@ -11,6 +11,9 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
 
+#: Upper bound for pixel-dimension widgets, matching ComfyUI's own MAX_RESOLUTION.
+MAX_RESOLUTION = 16384
+
 #: Output formats offered by the save nodes, in menu order.
 FILETYPES = ("png", "jpg", "jpeg", "webp", "tiff", "bmp")
 
@@ -39,6 +42,32 @@ def pil2tensor(image: Image.Image) -> torch.Tensor:
     if array.ndim == 2:
         array = array[:, :, None]
     return torch.from_numpy(array).unsqueeze(0)
+
+
+def match_mask_to_image(mask: torch.Tensor, image: torch.Tensor) -> torch.Tensor:
+    """Reshape a [B,H,W] mask so it lines up with a [B,H,W,C] image batch.
+
+    The mask is stretched to the image's resolution, ignoring aspect ratio. The batch is then
+    matched by repeating the last mask if there are too few, or trimming if there are too many.
+    """
+    image_batch, image_h, image_w = image.shape[0], image.shape[1], image.shape[2]
+
+    if mask.shape[1] != image_h or mask.shape[2] != image_w:
+        mask = torch.nn.functional.interpolate(
+            mask.unsqueeze(1),  # [B,1,H,W]
+            size=(image_h, image_w),
+            mode="bilinear",
+            align_corners=False,
+        ).squeeze(1)
+
+    mask_batch = mask.shape[0]
+    if mask_batch > image_batch:
+        mask = mask[:image_batch]
+    elif mask_batch < image_batch:
+        padding = mask[-1:].expand(image_batch - mask_batch, -1, -1)
+        mask = torch.cat([mask, padding], dim=0)
+
+    return mask
 
 
 def build_png_metadata(prompt=None, extra_pnginfo: dict | None = None) -> PngInfo | None:
