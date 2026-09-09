@@ -18,10 +18,10 @@ class SaveImageSequence(io.ComfyNode):
             category="MHNodes/image",
             description=(
                 "Saves an image batch to an arbitrary filesystem path as <stem>-0, <stem>-1, ... "
-                "with the index zero-padded to index_padding digits. Every image gets an index, "
-                "including a batch of one, so incremental renders keep a consistent sequence. The "
-                "extension comes from the filetype widget, and missing parent directories are "
-                "created. PNG output embeds the workflow metadata."
+                "counting up from start_index, zero-padded to index_padding digits. Every image "
+                "gets an index, including a batch of one, so incremental renders keep a "
+                "consistent sequence. The extension comes from the filetype widget, and missing "
+                "parent directories are created. PNG output embeds the workflow metadata."
             ),
             inputs=[
                 io.Image.Input("image", tooltip="Image or image batch to save."),
@@ -39,6 +39,17 @@ class SaveImageSequence(io.ComfyNode):
                     options=list(FILETYPES),
                     default="png",
                     tooltip="Output format. Only png embeds the prompt and workflow metadata.",
+                ),
+                io.Int.Input(
+                    "start_index",
+                    default=0,
+                    min=0,
+                    max=999999,
+                    step=1,
+                    tooltip=(
+                        "Index given to the first image of the batch. Raise it between runs to "
+                        "append to an existing sequence instead of overwriting it."
+                    ),
                 ),
                 io.Int.Input(
                     "index_padding",
@@ -68,7 +79,8 @@ class SaveImageSequence(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, image, path: str, filetype: str, index_padding: int, overwrite: bool):
+    def execute(cls, image, path: str, filetype: str, start_index: int, index_padding: int,
+                overwrite: bool):
         base_path = Path(path)
         if not base_path.name:
             raise ValueError(f"path must include a filename, got {path!r}")
@@ -80,7 +92,7 @@ class SaveImageSequence(io.ComfyNode):
 
         targets = [
             (frame, base_path.with_stem(f"{base_path.stem}-{i:0{index_padding}d}"))
-            for i, frame in enumerate(image)
+            for i, frame in enumerate(image, start=start_index)
         ]
 
         written: list[str] = []
