@@ -43,6 +43,16 @@ ComfyUI-MHNodes/
 To add a node: define it in a module under `nodes/`, export it from
 `nodes/__init__.py`, and add it to `get_node_list()` in `__init__.py`.
 
+## Conventions
+
+- **`node_id`** is `MH_<NodeName>`, e.g. `MH_SaveImageSequence`. This is the
+  globally unique key ComfyUI stores in saved workflows — never change it after
+  a node ships; change `display_name` instead.
+- **`display_name`** is the human-readable name, spaced and capitalized.
+- **`category`** is `MHNodes/<group>`, e.g. `MHNodes/image`.
+- Each node gets a help page at `docs/<node_id>.md` — the filename must match
+  the `node_id` exactly for ComfyUI to find it.
+
 ## License
 
 MIT

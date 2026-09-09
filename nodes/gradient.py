@@ -10,7 +10,7 @@ class LinearGradientFromCoords(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="MHNodes_LinearGradientFromCoords",
+            node_id="MH_LinearGradientFromCoords",
             display_name="Linear Gradient from Coords",
             category="MHNodes/generate",
             description=(
