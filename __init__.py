@@ -4,7 +4,12 @@ from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, io
 
-from .nodes import CropImageAndMask, LinearGradientFromCoords, SaveImageSequence
+from .nodes import (
+    CompositeImageMasked,
+    CropImageAndMask,
+    LinearGradientFromCoords,
+    SaveImageSequence,
+)
 
 
 class MHNodesExtension(ComfyExtension):
@@ -14,6 +19,7 @@ class MHNodesExtension(ComfyExtension):
             SaveImageSequence,
             LinearGradientFromCoords,
             CropImageAndMask,
+            CompositeImageMasked,
         ]
 
 

@@ -44,30 +44,49 @@ def pil2tensor(image: Image.Image) -> torch.Tensor:
     return torch.from_numpy(array).unsqueeze(0)
 
 
+def resize_mask(mask: torch.Tensor, height: int, width: int) -> torch.Tensor:
+    """Stretch a [B,H,W] mask to the given resolution, ignoring aspect ratio."""
+    if mask.shape[1] == height and mask.shape[2] == width:
+        return mask
+    return torch.nn.functional.interpolate(
+        mask.unsqueeze(1),  # [B,1,H,W]
+        size=(height, width),
+        mode="bilinear",
+        align_corners=False,
+    ).squeeze(1)
+
+
 def match_mask_to_image(mask: torch.Tensor, image: torch.Tensor) -> torch.Tensor:
     """Reshape a [B,H,W] mask so it lines up with a [B,H,W,C] image batch.
 
     The mask is stretched to the image's resolution, ignoring aspect ratio. The batch is then
     matched by repeating the last mask if there are too few, or trimming if there are too many.
     """
-    image_batch, image_h, image_w = image.shape[0], image.shape[1], image.shape[2]
+    mask = resize_mask(mask, image.shape[1], image.shape[2])
+    return match_batch_size(mask, image.shape[0])
 
-    if mask.shape[1] != image_h or mask.shape[2] != image_w:
-        mask = torch.nn.functional.interpolate(
-            mask.unsqueeze(1),  # [B,1,H,W]
-            size=(image_h, image_w),
-            mode="bilinear",
-            align_corners=False,
-        ).squeeze(1)
 
-    mask_batch = mask.shape[0]
-    if mask_batch > image_batch:
-        mask = mask[:image_batch]
-    elif mask_batch < image_batch:
-        padding = mask[-1:].expand(image_batch - mask_batch, -1, -1)
-        mask = torch.cat([mask, padding], dim=0)
+def match_batch_size(tensor: torch.Tensor, batch_size: int) -> torch.Tensor:
+    """Repeat the last entry or trim so a batch has exactly `batch_size` entries."""
+    current = tensor.shape[0]
+    if current == batch_size:
+        return tensor
+    if current > batch_size:
+        return tensor[:batch_size]
+    padding = tensor[-1:].expand(batch_size - current, *([-1] * (tensor.ndim - 1)))
+    return torch.cat([tensor, padding], dim=0)
 
-    return mask
+
+def match_channels(source: torch.Tensor, channels: int) -> torch.Tensor:
+    """Pad an image's channels with opaque alpha, or trim them, to reach `channels`."""
+    current = source.shape[-1]
+    if current == channels:
+        return source
+    if current > channels:
+        return source[..., :channels]
+    pad = torch.ones(*source.shape[:-1], channels - current,
+                     dtype=source.dtype, device=source.device)
+    return torch.cat([source, pad], dim=-1)
 
 
 def build_png_metadata(prompt=None, extra_pnginfo: dict | None = None) -> PngInfo | None:
