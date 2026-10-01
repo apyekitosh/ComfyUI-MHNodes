@@ -11,6 +11,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Linear Gradient from Coords** | `MHNodes/generate` | Generates a black-to-white linear gradient defined by two points. |
 | **Crop Image and Mask** | `MHNodes/image` | Crops an image and/or a mask to a fixed size by alignment and offset, returning paste coordinates. |
 | **Composite Image Masked** | `MHNodes/image` | Pastes a foreground onto a background with separate canvas-space and foreground-space masks. |
+| **Trail Masks** | `MHNodes/mask` | Merges each mask frame with the previous N, optionally fading, for motion trails. |
 
 Per-node documentation lives in [`docs/`](docs).
 
@@ -40,6 +41,7 @@ ComfyUI-MHNodes/
     crop.py          # cropping
     gradient.py      # generators
     image_io.py      # file I/O
+    mask_ops.py      # mask batch operations
     utils.py         # shared tensor/PIL helpers
   docs/              # per-node help pages (filename == node_id)
 ```

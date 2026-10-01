@@ -9,6 +9,7 @@ from .nodes import (
     CropImageAndMask,
     LinearGradientFromCoords,
     SaveImageSequence,
+    TrailMasks,
 )
 
 
@@ -20,6 +21,7 @@ class MHNodesExtension(ComfyExtension):
             LinearGradientFromCoords,
             CropImageAndMask,
             CompositeImageMasked,
+            TrailMasks,
         ]
 
 
