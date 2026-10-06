@@ -16,6 +16,16 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 
 Per-node documentation lives in [`docs/`](docs).
 
+## Model Puller
+
+Beyond the nodes, this pack adds a **model puller**: browse a shared model server,
+pull what you need on demand, and have it deleted again once nobody has used it
+for a configurable number of days. Only models it pulled itself are ever deleted
+— anything installed by hand is untouchable.
+
+Right-click the canvas → *Pull models from server…*. Configure it under
+**Settings → MHNodes → Model Puller**. See [docs/MODEL_PULLER.md](docs/MODEL_PULLER.md).
+
 ## Installation
 
 Clone into your ComfyUI `custom_nodes` directory and restart ComfyUI:
@@ -45,6 +55,15 @@ ComfyUI-MHNodes/
     mask_ops.py      # mask batch operations
     morphology.py    # erode/dilate
     utils.py         # shared tensor/PIL helpers
+  model_puller/      # pull models from a server, purge unused ones
+    config.py        # settings, read from comfy.settings.json
+    registry.py      # what was pulled, when it was last used
+    folders.py       # which model folder a loader's widget draws from
+    transfer.py      # chunked copy, .part + atomic rename
+    purge.py         # startup cleanup
+    tracking.py      # last-used hooks
+    api.py           # HTTP routes
+  js/                # frontend extension
   docs/              # per-node help pages (filename == node_id)
 ```
 
