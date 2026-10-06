@@ -42,11 +42,24 @@ def _server_root() -> str:
     return root
 
 
-def _local_root() -> str:
-    root = (config.load().get("LocalPath") or "").strip()
+def _destination_for(folder_type: str, relative: str) -> str:
+    """Absolute path to write a pulled model to, always inside a folder ComfyUI searches."""
+    preferred = (config.load().get("LocalPath") or "").strip()
+    root = folders.destination_root(folder_type, preferred)
     if not root:
-        raise web.HTTPBadRequest(reason="Local path is not set in Settings > MHNodes")
-    return root
+        raise web.HTTPBadRequest(
+            reason=f"ComfyUI has no registered folder for '{folder_type}'. "
+                   f"Add one in extra_model_paths.yaml."
+        )
+    return transfer.safe_join(root, relative)
+
+
+def _split_key(relative: str) -> tuple[str, str]:
+    """Split a server-relative path into (model type, path under that type)."""
+    parts = [p for p in relative.replace("\\", "/").split("/") if p]
+    if len(parts) < 2:
+        raise web.HTTPBadRequest(reason=f"Expected <model type>/<file>: {relative}")
+    return parts[0], "/".join(parts[1:])
 
 
 def _days_left(entry: dict) -> int | None:
@@ -90,13 +103,98 @@ def register(routes) -> None:
     @routes.get(f"{PREFIX}/config")
     async def get_config(request):
         settings = config.load()
+        server = (settings.get("ServerPath") or "").strip()
+        roots = folders.all_roots()
+        # Distinct top-level roots, for the destination preference dropdown.
+        bases = sorted({os.path.dirname(p.rstrip(os.sep))
+                        for paths in roots.values() for p in paths if p})
         return web.json_response({
-            "server_path": settings.get("ServerPath", ""),
+            "server_path": server,
             "local_path": settings.get("LocalPath", ""),
             "purge_days": settings.get("PurgeDays", 7),
             "enabled": settings.get("Enabled", True),
-            "server_ok": bool(settings.get("ServerPath")) and os.path.isdir(settings.get("ServerPath") or ""),
-            "local_ok": bool(settings.get("LocalPath")) and os.path.isdir(settings.get("LocalPath") or ""),
+            "server_ok": bool(server) and os.path.isdir(server),
+            "bases": bases,
+            "types": len(roots),
+        })
+
+    @routes.get(f"{PREFIX}/targets")
+    async def targets(request):
+        """Where each model type would be written, given the current preference."""
+        preferred = (config.load().get("LocalPath") or "").strip()
+        out = {}
+        for folder_type, paths in folders.all_roots().items():
+            out[folder_type] = {
+                "roots": paths,
+                "destination": folders.destination_root(folder_type, preferred),
+            }
+        return web.json_response({"targets": out, "preferred": preferred})
+
+    @routes.post(f"{PREFIX}/missing")
+    async def missing(request):
+        """Resolve a workflow's unsatisfied model widgets against the server.
+
+        The client sends every widget whose value is not in its own option list. Each is mapped
+        to a model folder and looked up on the server, so the reply says exactly which of them
+        can actually be pulled.
+        """
+        body = await request.json()
+        items = body.get("items") or []
+        server = (config.load().get("ServerPath") or "").strip()
+        server_ok = bool(server) and os.path.isdir(server)
+        mapping = folders.build_map()
+
+        results = []
+        seen = set()
+        for item in items:
+            node_type = (item or {}).get("node_type")
+            input_name = (item or {}).get("input_name")
+            value = (item or {}).get("value")
+            if not (node_type and input_name and isinstance(value, str)):
+                continue
+
+            folder_type = mapping.get((node_type, input_name))
+            inner = value.replace("\\", "/").lstrip("/")
+            entry = {
+                "node_type": node_type, "input_name": input_name, "value": value,
+                "folder_type": folder_type, "available": False, "size": 0, "reason": None,
+            }
+
+            if not folder_type:
+                entry["reason"] = "could not tell which model folder this belongs to"
+                results.append(entry)
+                continue
+
+            relative = f"{folder_type}/{inner}"
+            if relative in seen:
+                continue
+            seen.add(relative)
+            entry["path"] = relative
+            entry["key"] = registry.key_for(folder_type, inner)
+
+            if not server_ok:
+                entry["reason"] = "server path is not set or unreachable"
+            else:
+                try:
+                    candidate = transfer.safe_join(server, relative)
+                except transfer.TransferError as exc:
+                    entry["reason"] = str(exc)
+                    results.append(entry)
+                    continue
+                if os.path.isfile(candidate):
+                    entry["available"] = True
+                    try:
+                        entry["size"] = os.path.getsize(candidate)
+                    except OSError:
+                        pass
+                else:
+                    entry["reason"] = "not on the server"
+            results.append(entry)
+
+        return web.json_response({
+            "items": results,
+            "available": sum(1 for r in results if r["available"]),
+            "server_ok": server_ok,
         })
 
     @routes.get(f"{PREFIX}/browse")
@@ -151,25 +249,22 @@ def register(routes) -> None:
         if not isinstance(items, list) or not items:
             raise web.HTTPBadRequest(reason="No models selected")
 
-        server_root, local_root = _server_root(), _local_root()
+        server_root = _server_root()
         queued = []
 
         for item in items:
             relative = (item or {}).get("path", "")
+            folder_type, inner = _split_key(relative)
             try:
                 source = transfer.safe_join(server_root, relative)
-                destination = transfer.safe_join(local_root, relative)
+                destination = _destination_for(folder_type, inner)
             except transfer.TransferError as exc:
                 raise web.HTTPBadRequest(reason=str(exc))
 
             if not os.path.isfile(source):
                 raise web.HTTPBadRequest(reason=f"Not a file on the server: {relative}")
 
-            parts = [p for p in relative.replace("\\", "/").split("/") if p]
-            if len(parts) < 2:
-                raise web.HTTPBadRequest(reason=f"Expected <model type>/<file>: {relative}")
-            key = registry.key_for(parts[0], "/".join(parts[1:]))
-
+            key = registry.key_for(folder_type, inner)
             if key in _active:
                 continue
             cancel = threading.Event()

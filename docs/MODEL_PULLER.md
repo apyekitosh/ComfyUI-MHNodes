@@ -11,7 +11,7 @@ Under **Settings → MHNodes → Model Puller**:
 | Setting | Meaning |
 | --- | --- |
 | **Server model path** | Root of the shared store, laid out like ComfyUI's `models/` folder. A UNC path such as `\server\models` works. |
-| **Local destination** | Where pulled models are written. Must already be a path ComfyUI searches — set that in `extra_model_paths.yaml`; this tool does not validate it. |
+| **Preferred destination root** | Optional. Models always land in a folder ComfyUI already searches; this only picks between them when a type has several. |
 | **Delete after this many days unused** | Default 7. Checked at startup only. |
 | **Enable automatic cleanup** | Off keeps pulling but never deletes. |
 | **Track model usage** | Records when each pulled model was last used. Takes effect after a restart. |
@@ -27,6 +27,36 @@ Each file shows one of three states:
 - **✓ kept** / **✓ installed** — exempt from cleanup, or installed by hand
 
 **Keep** exempts a model from cleanup, after a confirmation. It sets a flag rather than dropping the registry row, so it is reversible and the record of where the model came from survives.
+
+## Where pulled models land
+
+You never type a destination. The target is read from `folder_paths`, i.e. whatever
+`extra_model_paths.yaml` registers, so a pulled model is findable by ComfyUI **by construction** —
+there is no way to write it somewhere invisible, and an unknown model type is refused rather than
+guessed at.
+
+When a model type has several registered folders, the choice is:
+
+1. the **Preferred destination root**, if one is set and matches,
+2. otherwise whichever folder already holds the most models of that type — that is where this
+   install actually keeps them,
+3. never a folder inside the ComfyUI install itself. On the Desktop build the first registered
+   folder is often inside the Electron app bundle, which is replaced wholesale on update. If
+   *every* registered folder for a type is in there, it is used as a last resort and a warning
+   is logged telling you to add one outside.
+
+## Pulling missing models in bulk
+
+**Pull missing models for this workflow** (canvas right-click or the MHNodes menu) collects every
+model widget in the open graph whose value is not in its own option list, resolves each to a model
+folder, and checks the server for it. You get one list with sizes, everything available
+pre-ticked, and a single button.
+
+Nothing is automatic: you see what will be fetched and confirm it. Models that cannot be resolved
+or are not on the server are listed with the reason, unticked.
+
+Re-run the workflow once the copies finish — ComfyUI re-checks the folder on each request, so the
+error clears without a restart.
 
 ## Cleanup
 

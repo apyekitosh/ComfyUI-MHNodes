@@ -94,11 +94,6 @@ class ModelBrowser {
         "Set it in Settings → MHNodes, under Model Puller.", 6000);
       return;
     }
-    if (!config.local_ok) {
-      toast("warn", "Local path not set",
-        "Set where pulled models should land in Settings → MHNodes.", 6000);
-      return;
-    }
     this.render();
     await this.load("");
   }
@@ -338,6 +333,163 @@ const openBrowser = async () => {
   }
 };
 
+
+// ------------------------------------------------------------------- missing models
+
+/** Every combo widget in the open graph whose value is not one of its own options. */
+const findUnsatisfied = () => {
+  const out = [];
+  for (const node of app.graph?.nodes ?? []) {
+    for (const widget of node.widgets ?? []) {
+      const options = widget.options?.values;
+      if (!Array.isArray(options) || !options.length) continue;
+      const value = widget.value;
+      if (typeof value !== "string" || !value) continue;
+      if (options.includes(value)) continue;
+      out.push({ node_type: node.comfyClass ?? node.type, input_name: widget.name, value,
+                 nodeId: node.id });
+    }
+  }
+  return out;
+};
+
+const pullMissing = async () => {
+  injectStyles();
+  const unsatisfied = findUnsatisfied();
+  if (!unsatisfied.length) {
+    toast("success", "Nothing missing", "Every model this workflow needs is already here.");
+    return;
+  }
+
+  let data;
+  try {
+    data = await call("/missing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: unsatisfied }),
+    });
+  } catch (err) {
+    toast("error", "Could not check the server", err.message);
+    return;
+  }
+
+  if (!data.server_ok) {
+    toast("warn", "Server path not set",
+      "Set it in Settings → MHNodes, under Model Puller.", 6000);
+    return;
+  }
+
+  const dialog = new MissingDialog(data.items);
+  dialog.render();
+};
+
+class MissingDialog {
+  constructor(items) {
+    this.items = items;
+    this.selected = new Set(items.filter((i) => i.available).map((i) => i.path));
+  }
+
+  render() {
+    this.backdrop = document.createElement("div");
+    this.backdrop.className = "mhmp-backdrop";
+    this.backdrop.innerHTML = `
+      <div class="mhmp" role="dialog" aria-label="Missing models">
+        <header>
+          <h3>Missing models</h3>
+          <button class="mhmp-close" aria-label="Close">&times;</button>
+        </header>
+        <div class="mhmp-list"></div>
+        <footer>
+          <span class="mhmp-info"></span>
+          <button class="mhmp-primary">Pull all available</button>
+        </footer>
+      </div>`;
+    this.list = this.backdrop.querySelector(".mhmp-list");
+    this.info = this.backdrop.querySelector(".mhmp-info");
+    this.button = this.backdrop.querySelector(".mhmp-primary");
+
+    this.backdrop.querySelector(".mhmp-close").onclick = () => this.close();
+    this.backdrop.onclick = (e) => { if (e.target === this.backdrop) this.close(); };
+    this.onKey = (e) => { if (e.key === "Escape") this.close(); };
+    document.addEventListener("keydown", this.onKey);
+    this.button.onclick = () => this.pull();
+
+    for (const item of this.items) this.list.appendChild(this.makeRow(item));
+    this.update();
+    document.body.appendChild(this.backdrop);
+  }
+
+  makeRow(item) {
+    const row = document.createElement("div");
+    row.className = "mhmp-row";
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.disabled = !item.available;
+    box.checked = item.available;
+    box.onchange = () => {
+      box.checked ? this.selected.add(item.path) : this.selected.delete(item.path);
+      this.update();
+    };
+    row.appendChild(box);
+
+    const name = document.createElement("span");
+    name.className = "mhmp-name";
+    name.textContent = item.value;
+    name.title = `${item.node_type}.${item.input_name}`;
+    row.appendChild(name);
+
+    if (item.available) {
+      const size = document.createElement("span");
+      size.className = "mhmp-size";
+      size.textContent = fmtSize(item.size);
+      row.appendChild(size);
+      row.insertAdjacentHTML("beforeend",
+        `<span class="mhmp-tag mhmp-have">${item.folder_type}</span>`);
+    } else {
+      const why = document.createElement("span");
+      why.className = "mhmp-size";
+      why.textContent = item.reason ?? "unavailable";
+      row.appendChild(why);
+    }
+    return row;
+  }
+
+  async pull() {
+    const items = [...this.selected].map((path) => ({ path }));
+    if (!items.length) return this.close();
+    this.button.disabled = true;
+    try {
+      const result = await call("/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      toast("info", "Copying",
+        `${result.queued.length} model(s) queued. Re-run the workflow once they finish.`);
+      this.close();
+    } catch (err) {
+      toast("error", "Could not start the copy", err.message);
+      this.button.disabled = false;
+    }
+  }
+
+  update() {
+    const n = this.selected.size;
+    const blocked = this.items.filter((i) => !i.available).length;
+    this.button.disabled = n === 0;
+    this.button.textContent = n ? `Pull ${n} model${n > 1 ? "s" : ""}` : "Nothing to pull";
+    this.info.textContent = blocked
+      ? `${n} available, ${blocked} not on the server`
+      : `${n} available`;
+  }
+
+  close() {
+    document.removeEventListener("keydown", this.onKey);
+    this.backdrop?.remove();
+  }
+}
+
 // ---------------------------------------------------------------------------- extension
 
 app.registerExtension({
@@ -353,9 +505,10 @@ app.registerExtension({
     },
     {
       id: S("LocalPath"), category: ["MHNodes", "Model Puller", "Local path"],
-      name: "Local destination",
-      tooltip: "Where pulled models are written. Must already be a model path ComfyUI searches "
-             + "(set that in extra_model_paths.yaml).",
+      name: "Preferred destination root",
+      tooltip: "Optional. Models are always written into a folder ComfyUI already searches "
+             + "(from extra_model_paths.yaml). When a model type has several registered "
+             + "folders, this picks which one wins; leave blank to use ComfyUI's default.",
       type: "text", defaultValue: "",
     },
     {
@@ -386,12 +539,24 @@ app.registerExtension({
       icon: "pi pi-cloud-download",
       function: openBrowser,
     },
+    {
+      id: "MHNodes.ModelPuller.missing",
+      label: "Pull missing models for this workflow",
+      icon: "pi pi-download",
+      function: pullMissing,
+    },
   ],
 
-  menuCommands: [{ path: ["MHNodes"], commands: ["MHNodes.ModelPuller.browse"] }],
+  menuCommands: [{
+    path: ["MHNodes"],
+    commands: ["MHNodes.ModelPuller.browse", "MHNodes.ModelPuller.missing"],
+  }],
 
   getCanvasMenuItems() {
-    return [{ content: "Pull models from server…", callback: openBrowser }];
+    return [
+      { content: "Pull models from server…", callback: openBrowser },
+      { content: "Pull missing models for this workflow", callback: pullMissing },
+    ];
   },
 
   async setup() {
