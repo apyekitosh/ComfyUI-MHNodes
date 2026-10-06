@@ -151,6 +151,86 @@ def invalidate() -> None:
         _cache = None
 
 
+def roots_for(folder_type: str) -> list[str]:
+    """Registered directories ComfyUI searches for this model type, as absolute paths."""
+    try:
+        import folder_paths
+
+        return [os.path.abspath(p) for p in folder_paths.get_folder_paths(folder_type)]
+    except Exception:
+        return []
+
+
+def all_roots() -> dict[str, list[str]]:
+    """Every model type mapped to the directories ComfyUI searches for it."""
+    try:
+        import folder_paths
+
+        names = [n for n in folder_paths.folder_names_and_paths if n not in NON_MODEL_FOLDERS]
+    except Exception:
+        return {}
+    return {name: roots_for(name) for name in sorted(names)}
+
+
+def _in_program_dir(path: str) -> bool:
+    """True for paths inside the ComfyUI install itself.
+
+    On the Desktop build the first registered folder for a type is often inside the Electron
+    app bundle, which is replaced wholesale on update -- the worst possible place to park a
+    20 GB model. Never choose one of those by default.
+    """
+    try:
+        import folder_paths
+
+        base = os.path.normcase(os.path.abspath(folder_paths.base_path))
+    except Exception:
+        return False
+    return os.path.normcase(os.path.abspath(path)).startswith(base + os.sep)
+
+
+def destination_root(folder_type: str, preferred: str = "") -> str | None:
+    """Where a pulled model of this type should land.
+
+    Always one of the directories ComfyUI already searches, so a pulled model is findable by
+    construction -- there is no way to write it somewhere invisible.
+
+    When a type has several registered folders the choice is, in order: an explicit preference,
+    then whichever folder already holds the most models of that type (that is where this install
+    actually keeps them), then the first that is not inside the program directory.
+    """
+    candidates = roots_for(folder_type)
+    if not candidates:
+        return None
+
+    if preferred:
+        preferred_norm = os.path.normcase(os.path.abspath(preferred))
+        for candidate in candidates:
+            if os.path.normcase(candidate).startswith(preferred_norm):
+                return candidate
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    def populated(path: str) -> int:
+        count = 0
+        for _, _, files in os.walk(path):
+            count += sum(1 for f in files if looks_like_model(f))
+            if count > 500:  # enough to rank it; no need to walk a huge tree fully
+                break
+        return count
+
+    outside = [c for c in candidates if not _in_program_dir(c)]
+    if not outside:
+        # Nothing registered outside the install, so there is nowhere safer to put it.
+        log.warning(
+            "every registered folder for '%s' is inside the ComfyUI install, which a Desktop "
+            "update replaces. Add a folder outside it in extra_model_paths.yaml.", folder_type
+        )
+        outside = candidates
+
+    return sorted(outside, key=lambda c: -populated(c))[0]
+
+
 def find_local(folder_type: str, relative_path: str) -> str | None:
     """Absolute path if this model already exists in any registered folder for its type."""
     try:

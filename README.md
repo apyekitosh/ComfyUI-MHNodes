@@ -23,7 +23,8 @@ pull what you need on demand, and have it deleted again once nobody has used it
 for a configurable number of days. Only models it pulled itself are ever deleted
 — anything installed by hand is untouchable.
 
-Right-click the canvas → *Pull models from server…*. Configure it under
+Right-click the canvas → *Pull models from server…*, or *Pull missing models for
+this workflow* to fetch everything the open graph is missing in one go. Configure it under
 **Settings → MHNodes → Model Puller**. See [docs/MODEL_PULLER.md](docs/MODEL_PULLER.md).
 
 ## Installation
