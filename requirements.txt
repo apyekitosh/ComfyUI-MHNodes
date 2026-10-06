@@ -1,2 +1,0 @@
-# Already present in a standard ComfyUI install; listed so the dependency is explicit.
-opencv-python
