@@ -32,7 +32,7 @@ this workflow* to fetch everything the open graph is missing in one go. Configur
 Clone into your ComfyUI `custom_nodes` directory and restart ComfyUI:
 
 ```bash
-git clone https://github.com/mh/ComfyUI-MHNodes
+git clone https://github.com/apyekitosh/ComfyUI-MHNodes
 ```
 
 No extra dependencies — everything used ships with ComfyUI.

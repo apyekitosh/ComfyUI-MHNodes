@@ -37,7 +37,7 @@ guessed at.
 
 ### Pinning everything to one drive
 
-Set **Preferred destination root** to e.g. `E:\AIResources\models` and every model type goes
+Set **Preferred destination root** to e.g. `E:\models` and every model type goes
 there. A type still lands in its own subfolder (`loras/`, `vae/`, …), picked from the folders
 ComfyUI already searches under that root.
 
