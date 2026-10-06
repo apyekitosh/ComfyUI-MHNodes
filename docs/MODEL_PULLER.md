@@ -40,10 +40,19 @@ When a model type has several registered folders, the choice is:
 1. the **Preferred destination root**, if one is set and matches,
 2. otherwise whichever folder already holds the most models of that type — that is where this
    install actually keeps them,
-3. never a folder inside the ComfyUI install itself. On the Desktop build the first registered
-   folder is often inside the Electron app bundle, which is replaced wholesale on update. If
-   *every* registered folder for a type is in there, it is used as a last resort and a warning
-   is logged telling you to add one outside.
+3. on a tie, never a folder inside ComfyUI's own source directory. On the Desktop build that is
+   the app install, which an update replaces wholesale. Note this keys on where ComfyUI's *code*
+   lives, not `folder_paths.base_path` — Desktop launches with `--base-directory` pointing at the
+   user's data root, so `base_path` is where the real models are,
+4. and finally the folder actually named after the type, since several types register aliases
+   (`controlnet` also searches `t2i_adapter`) that would otherwise win on ordering alone.
+
+Nothing is read from any yaml. Desktop in particular has moved its model config around — it now
+generates a per-instance file under `Comfy Desktop/instance-model-paths/` — so reading
+`folder_paths` at runtime is what keeps this correct across those changes.
+
+Junctions are handled: a model root reached through one resolves correctly, and the free-space
+check reports the volume actually written to, not the one the path appears to be on.
 
 ## Pulling missing models in bulk
 
