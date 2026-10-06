@@ -12,7 +12,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Crop Image and Mask** | `MHNodes/image` | Crops an image and/or a mask to a fixed size by alignment and offset, returning paste coordinates. |
 | **Composite Image Masked** | `MHNodes/image` | Pastes a foreground onto a background with separate canvas-space and foreground-space masks. |
 | **Trail Masks** | `MHNodes/mask` | Merges each mask frame with the previous N, optionally fading, for motion trails. |
-| **Erode / Dilate (RGB)** | `MHNodes/image` | Per-channel morphology: dilate, erode, open, close. |
+| **Erode / Dilate (RGB)** | `MHNodes/image` | Per-channel morphology: dilate, erode, open, close. Pure torch. |
 
 Per-node documentation lives in [`docs/`](docs).
 
@@ -24,8 +24,7 @@ Clone into your ComfyUI `custom_nodes` directory and restart ComfyUI:
 git clone https://github.com/mh/ComfyUI-MHNodes
 ```
 
-No extra dependencies beyond a standard ComfyUI install; `requirements.txt`
-lists `opencv-python`, used by Erode / Dilate, so the dependency is explicit.
+No extra dependencies — everything used ships with ComfyUI.
 
 ## Requirements
 
