@@ -7,6 +7,7 @@ from comfy_api.latest import ComfyExtension, io
 from .nodes import (
     CompositeImageMasked,
     CropImageAndMask,
+    ErodeDilate,
     LinearGradientFromCoords,
     SaveImageSequence,
     TrailMasks,
@@ -22,6 +23,7 @@ class MHNodesExtension(ComfyExtension):
             CropImageAndMask,
             CompositeImageMasked,
             TrailMasks,
+            ErodeDilate,
         ]
 
 
