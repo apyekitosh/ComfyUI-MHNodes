@@ -11,7 +11,7 @@ Under **Settings → MHNodes → Model Puller**:
 | Setting | Meaning |
 | --- | --- |
 | **Server model path** | Root of the shared store, laid out like ComfyUI's `models/` folder. A UNC path such as `\server\models` works. |
-| **Preferred destination root** | Optional. Models always land in a folder ComfyUI already searches; this only picks between them when a type has several. |
+| **Preferred destination root** | Optional. Set it to send every model type to one drive. Blank means per-type defaults. |
 | **Delete after this many days unused** | Default 7. Checked at startup only. |
 | **Enable automatic cleanup** | Off keeps pulling but never deletes. |
 | **Track model usage** | Records when each pulled model was last used. Takes effect after a restart. |
@@ -35,17 +35,31 @@ You never type a destination. The target is read from `folder_paths`, i.e. whate
 there is no way to write it somewhere invisible, and an unknown model type is refused rather than
 guessed at.
 
+### Pinning everything to one drive
+
+Set **Preferred destination root** to e.g. `E:\AIResources\models` and every model type goes
+there. A type still lands in its own subfolder (`loras/`, `vae/`, …), picked from the folders
+ComfyUI already searches under that root.
+
+The one limit: a type that has **no** registered folder under the preferred root falls back to
+the per-type default, rather than writing somewhere ComfyUI would not look for it. Check the
+startup log or `/mhnodes/model_puller/targets` to see where each type resolves.
+
+### How a destination is chosen
+
 When a model type has several registered folders, the choice is:
 
-1. the **Preferred destination root**, if one is set and matches,
+1. the **Preferred destination root**, if one is set and the type is registered under it,
 2. otherwise whichever folder already holds the most models of that type — that is where this
    install actually keeps them,
 3. on a tie, never a folder inside ComfyUI's own source directory. On the Desktop build that is
    the app install, which an update replaces wholesale. Note this keys on where ComfyUI's *code*
    lives, not `folder_paths.base_path` — Desktop launches with `--base-directory` pointing at the
    user's data root, so `base_path` is where the real models are,
-4. and finally the folder actually named after the type, since several types register aliases
-   (`controlnet` also searches `t2i_adapter`) that would otherwise win on ordering alone.
+4. and finally the folder actually named after the type. Several types register legacy aliases
+   — `diffusion_models` also searches `unet`, `text_encoders` also searches `clip`, `controlnet`
+   also searches `t2i_adapter` — and those can come first in the list. This applies to the
+   preferred root too, so pinning a drive still puts loras in `loras/`.
 
 Nothing is read from any yaml. Desktop in particular has moved its model config around — it now
 generates a per-instance file under `Comfy Desktop/instance-model-paths/` — so reading

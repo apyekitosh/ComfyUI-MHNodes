@@ -206,11 +206,25 @@ def destination_root(folder_type: str, preferred: str = "") -> str | None:
     if not candidates:
         return None
 
+    def prefer_named(options: list[str]) -> list[str]:
+        """Narrow to the folder actually named after this type, when one is present.
+
+        Several types register legacy aliases -- diffusion_models also searches unet,
+        text_encoders also searches clip, controlnet also searches t2i_adapter -- and those can
+        come first in the candidate list. Landing a pull in one works, but it is not where
+        anybody would look for it.
+        """
+        named = [o for o in options
+                 if os.path.basename(o.rstrip(os.sep)).lower() == folder_type.lower()]
+        return named or options
+
     if preferred:
-        preferred_norm = os.path.normcase(os.path.abspath(preferred))
-        for candidate in candidates:
-            if os.path.normcase(candidate).startswith(preferred_norm):
-                return candidate
+        prefix = os.path.normcase(os.path.abspath(preferred))
+        under = [c for c in candidates if os.path.normcase(c).startswith(prefix)]
+        if under:
+            return prefer_named(under)[0]
+        # Nothing registered for this type under the preferred root, so fall through rather
+        # than writing somewhere ComfyUI does not search for it.
 
     if len(candidates) == 1:
         return candidates[0]
@@ -240,16 +254,8 @@ def destination_root(folder_type: str, preferred: str = "") -> str | None:
                 "Desktop update replaces. Consider adding one outside it.", folder_type
             )
 
-    if len(leaders) > 1:
-        # ...then prefer the folder actually named after this type. Several types register
-        # aliases (controlnet also searches t2i_adapter), and when they are all empty the
-        # alias would otherwise win on ordering alone.
-        named = [c for c in leaders if os.path.basename(c.rstrip(os.sep)).lower()
-                 == folder_type.lower()]
-        if named:
-            leaders = named
-
-    return leaders[0]
+    # ...then prefer the folder actually named after this type.
+    return prefer_named(leaders)[0]
 
 
 def find_local(folder_type: str, relative_path: str) -> str | None:
