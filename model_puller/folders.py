@@ -172,20 +172,22 @@ def all_roots() -> dict[str, list[str]]:
     return {name: roots_for(name) for name in sorted(names)}
 
 
-def _in_program_dir(path: str) -> bool:
-    """True for paths inside the ComfyUI install itself.
+def _in_source_dir(path: str) -> bool:
+    """True for paths inside the directory ComfyUI's own code lives in.
 
-    On the Desktop build the first registered folder for a type is often inside the Electron
-    app bundle, which is replaced wholesale on update -- the worst possible place to park a
-    20 GB model. Never choose one of those by default.
+    On the Desktop build that is the Electron app bundle, which an update replaces wholesale --
+    a bad place to park a 20 GB model. This deliberately keys on the *source* location rather
+    than folder_paths.base_path: Desktop launches with --base-directory pointing at the user's
+    data root (C:\\ComfyUI), so base_path is where the real models live, not the install.
     """
     try:
         import folder_paths
 
-        base = os.path.normcase(os.path.abspath(folder_paths.base_path))
+        source = os.path.dirname(os.path.realpath(folder_paths.__file__))
     except Exception:
         return False
-    return os.path.normcase(os.path.abspath(path)).startswith(base + os.sep)
+    source = os.path.normcase(source)
+    return os.path.normcase(os.path.realpath(path)).startswith(source + os.sep)
 
 
 def destination_root(folder_type: str, preferred: str = "") -> str | None:
@@ -195,8 +197,10 @@ def destination_root(folder_type: str, preferred: str = "") -> str | None:
     construction -- there is no way to write it somewhere invisible.
 
     When a type has several registered folders the choice is, in order: an explicit preference,
-    then whichever folder already holds the most models of that type (that is where this install
-    actually keeps them), then the first that is not inside the program directory.
+    then whichever folder already holds the most models of that type -- that is where this
+    install actually keeps them, and it is the signal that works everywhere. Only when that
+    cannot separate them (typically all empty) does it fall back to avoiding ComfyUI's own
+    source directory.
     """
     candidates = roots_for(folder_type)
     if not candidates:
@@ -219,16 +223,33 @@ def destination_root(folder_type: str, preferred: str = "") -> str | None:
                 break
         return count
 
-    outside = [c for c in candidates if not _in_program_dir(c)]
-    if not outside:
-        # Nothing registered outside the install, so there is nowhere safer to put it.
-        log.warning(
-            "every registered folder for '%s' is inside the ComfyUI install, which a Desktop "
-            "update replaces. Add a folder outside it in extra_model_paths.yaml.", folder_type
-        )
-        outside = candidates
+    # Several registered names can point at one directory through a junction or symlink, so
+    # compare resolved paths rather than the names when counting them as distinct.
+    counts = {c: populated(c) for c in candidates}
+    best = max(counts.values())
+    leaders = [c for c in candidates if counts[c] == best]
 
-    return sorted(outside, key=lambda c: -populated(c))[0]
+    if len(leaders) > 1:
+        # Nothing separates them by content. Avoid the app bundle first...
+        outside = [c for c in leaders if not _in_source_dir(c)]
+        if outside:
+            leaders = outside
+        elif best == 0:
+            log.warning(
+                "every registered folder for '%s' is inside the ComfyUI install, which a "
+                "Desktop update replaces. Consider adding one outside it.", folder_type
+            )
+
+    if len(leaders) > 1:
+        # ...then prefer the folder actually named after this type. Several types register
+        # aliases (controlnet also searches t2i_adapter), and when they are all empty the
+        # alias would otherwise win on ordering alone.
+        named = [c for c in leaders if os.path.basename(c.rstrip(os.sep)).lower()
+                 == folder_type.lower()]
+        if named:
+            leaders = named
+
+    return leaders[0]
 
 
 def find_local(folder_type: str, relative_path: str) -> str | None:
