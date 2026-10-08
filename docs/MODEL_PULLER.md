@@ -81,6 +81,18 @@ or are not on the server are listed with the reason, unticked.
 Re-run the workflow once the copies finish — ComfyUI re-checks the folder on each request, so the
 error clears without a restart.
 
+## Cancelling a copy
+
+A panel appears bottom-right while anything is copying, with a progress bar and a **Cancel**
+button per file plus **Cancel all**. It lives outside both dialogs, because a copy outlives the
+dialog that started it — pulling from the missing-models list closes that list immediately.
+
+Cancelling is clean: the worker stops between chunks and deletes its own `.part`, so nothing
+half-written is left on disk. A copy still queued behind another is dropped before it starts.
+
+Killing ComfyUI mid-copy is **not** equivalent — the process dies before the cleanup runs, and
+the `.part` file stays. Use Cancel.
+
 ## Cleanup
 
 Runs once at startup, when nothing is loaded and nobody has a session open. A model is deleted when all of the following hold:

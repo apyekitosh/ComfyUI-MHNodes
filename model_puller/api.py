@@ -274,6 +274,33 @@ def register(routes) -> None:
 
         return web.json_response({"queued": queued})
 
+    @routes.post(f"{PREFIX}/cancel")
+    async def cancel(request):
+        """Stop one copy, or all of them. The worker notices between chunks and cleans up its
+        own .part file, so nothing half-written survives."""
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+
+        key = (body or {}).get("key")
+        if key:
+            event = _active.get(key)
+            if event is None:
+                raise web.HTTPNotFound(reason="That copy is not running")
+            event.set()
+            return web.json_response({"cancelled": [key]})
+
+        keys = list(_active)
+        for event in list(_active.values()):
+            event.set()
+        return web.json_response({"cancelled": keys})
+
+    @routes.get(f"{PREFIX}/active")
+    async def active(request):
+        return web.json_response({"active": list(_active)})
+
     @routes.post(f"{PREFIX}/keep")
     async def keep(request):
         body = await request.json()
@@ -311,6 +338,10 @@ def register(routes) -> None:
 def _run_pull(key: str, relative: str, source: str, destination: str,
               cancel: threading.Event) -> None:
     try:
+        # Cancelled while still queued behind another copy: never start it.
+        if cancel.is_set():
+            raise transfer.TransferError("cancelled")
+
         total = os.path.getsize(source)
         _notify("start", {"key": key, "path": relative, "total": total})
 
@@ -323,6 +354,14 @@ def _run_pull(key: str, relative: str, source: str, destination: str,
         folders.invalidate()
         _notify("done", {"key": key, "path": relative, "destination": destination})
         log.info("pulled %s -> %s", key, destination)
+    except transfer.TransferError as exc:
+        # Cancelling is a normal outcome, not a failure; the .part is already gone.
+        if str(exc) == "cancelled":
+            log.info("cancelled %s", key)
+            _notify("cancelled", {"key": key, "path": relative})
+        else:
+            log.error("pull failed for %s: %s", key, exc)
+            _notify("error", {"key": key, "path": relative, "error": str(exc)})
     except Exception as exc:
         log.error("pull failed for %s: %s", key, exc)
         _notify("error", {"key": key, "path": relative, "error": str(exc)})
