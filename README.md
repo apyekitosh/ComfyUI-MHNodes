@@ -15,6 +15,8 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Erode / Dilate (RGB)** | `MHNodes/image` | Per-channel morphology: dilate, erode, open, close. Pure torch. |
 | **Any to Pipe** | `MHNodes/pipe` | Bundles up to 5 connections of any type into one link. Nestable. |
 | **Pipe to Any** | `MHNodes/pipe` | Unpacks a pipe back into its 5 values. |
+| **Save Latent + Preview** | `MHNodes/latent` | Saves a latent with a fast visual preview beside it. |
+| **Load Latent + Preview** | `MHNodes/latent` | Picks a saved latent by looking at its preview. |
 
 Per-node documentation lives in [`docs/`](docs).
 
@@ -57,8 +59,10 @@ ComfyUI-MHNodes/
     image_io.py      # file I/O
     mask_ops.py      # mask batch operations
     morphology.py    # erode/dilate
+    latent_io.py     # save/load latents with previews
     pipe.py          # bundle/unbundle connections
     utils.py         # shared tensor/PIL helpers
+  latent_store.py    # paired latent/preview storage + discard route
   model_puller/      # pull models from a server, purge unused ones
     config.py        # settings, read from comfy.settings.json
     registry.py      # what was pulled, when it was last used
