@@ -7,10 +7,12 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
 from .nodes import (
+    AnyToPipe,
     CompositeImageMasked,
     CropImageAndMask,
     ErodeDilate,
     LinearGradientFromCoords,
+    PipeToAny,
     SaveImageSequence,
     TrailMasks,
 )
@@ -39,6 +41,8 @@ class MHNodesExtension(ComfyExtension):
             CompositeImageMasked,
             TrailMasks,
             ErodeDilate,
+            AnyToPipe,
+            PipeToAny,
         ]
 
 

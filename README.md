@@ -13,6 +13,8 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Composite Image Masked** | `MHNodes/image` | Pastes a foreground onto a background with separate canvas-space and foreground-space masks. |
 | **Trail Masks** | `MHNodes/mask` | Merges each mask frame with the previous N, optionally fading, for motion trails. |
 | **Erode / Dilate (RGB)** | `MHNodes/image` | Per-channel morphology: dilate, erode, open, close. Pure torch. |
+| **Any to Pipe** | `MHNodes/pipe` | Bundles up to 5 connections of any type into one link. Nestable. |
+| **Pipe to Any** | `MHNodes/pipe` | Unpacks a pipe back into its 5 values. |
 
 Per-node documentation lives in [`docs/`](docs).
 
@@ -55,6 +57,7 @@ ComfyUI-MHNodes/
     image_io.py      # file I/O
     mask_ops.py      # mask batch operations
     morphology.py    # erode/dilate
+    pipe.py          # bundle/unbundle connections
     utils.py         # shared tensor/PIL helpers
   model_puller/      # pull models from a server, purge unused ones
     config.py        # settings, read from comfy.settings.json
