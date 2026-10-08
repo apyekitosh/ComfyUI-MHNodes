@@ -91,7 +91,8 @@ Cancelling is clean: the worker stops between chunks and deletes its own `.part`
 half-written is left on disk. A copy still queued behind another is dropped before it starts.
 
 Killing ComfyUI mid-copy is **not** equivalent — the process dies before the cleanup runs, and
-the `.part` file stays. Use Cancel.
+the `.part` file stays. Use Cancel. If it does happen, the leftover is collected at the next
+startup (see below), so a crash costs you the transfer but not the disk space.
 
 ## Cleanup
 
@@ -101,6 +102,12 @@ Runs once at startup, when nothing is loaded and nobody has a session open. A mo
 2. it is not marked kept,
 3. nothing has used it for longer than the configured number of days,
 4. its size and modification time still match what was written at pull time.
+
+Stale `.part` files are swept at the same time — leftovers from a crash or a killed process,
+which cancelling would have cleaned up itself. Only files named `<model name>.part` inside a
+folder this tool writes to are considered, and only if untouched for five minutes, so a copy
+running in a second instance is never pulled out from under it. This happens even with cleanup
+disabled, since a partial file is never something anyone chose to keep.
 
 Rule 1 is the safety property: **a model installed by hand can never be deleted**, because nothing but this tool's own registry is ever consulted. Rule 4 covers the case where someone replaced a pulled file by hand — the file is no longer the one we wrote, so it is left alone and logged.
 
