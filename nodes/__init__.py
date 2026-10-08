@@ -1,3 +1,4 @@
+from .batch import ImageMaskFromBatch
 from .composite import CompositeImageMasked
 from .crop import CropImageAndMask
 from .gradient import LinearGradientFromCoords
@@ -12,6 +13,7 @@ __all__ = [
     "CompositeImageMasked",
     "CropImageAndMask",
     "ErodeDilate",
+    "ImageMaskFromBatch",
     "LinearGradientFromCoords",
     "LoadLatentPreview",
     "PipeToAny",
