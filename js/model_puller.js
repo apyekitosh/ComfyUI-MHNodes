@@ -66,6 +66,27 @@ const CSS = `
   color: #fff; padding: 6px 16px; border-radius: 5px; cursor: pointer; font-size: 13px; }
 .mhmp button.mhmp-primary:disabled { opacity: .4; cursor: default; }
 .mhmp .mhmp-empty { padding: 32px 16px; text-align: center; opacity: .55; }
+.mhmp-xfers { position: fixed; right: 16px; bottom: 16px; z-index: 10001; width: 330px;
+  background: var(--comfy-menu-bg, #202020); color: var(--fg-color, #ddd);
+  border: 1px solid var(--border-color, #444); border-radius: 8px;
+  font-family: system-ui, sans-serif; font-size: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.45); }
+.mhmp-xfers h4 { margin: 0; padding: 9px 12px; font-size: 12px; font-weight: 600;
+  border-bottom: 1px solid var(--border-color, #444); display: flex; gap: 8px; }
+.mhmp-xfers h4 span { flex: 1; }
+.mhmp-xfers .mhmp-all { background: none; border: none; color: #ff9a9a; cursor: pointer;
+  font-size: 11px; padding: 0; }
+.mhmp-xfer { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.mhmp-xfer:last-child { border-bottom: none; }
+.mhmp-xfer .mhmp-xname { display: flex; gap: 8px; align-items: center; }
+.mhmp-xfer .mhmp-xname span { flex: 1; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.mhmp-xfer button { background: none; border: 1px solid var(--border-color, #555);
+  color: inherit; border-radius: 4px; padding: 1px 7px; cursor: pointer; font-size: 11px; }
+.mhmp-xfer button:hover { border-color: #ff9a9a; color: #ff9a9a; }
+.mhmp-xfer .mhmp-xbar { height: 3px; background: rgba(255,255,255,.12); border-radius: 2px;
+  margin-top: 6px; overflow: hidden; }
+.mhmp-xfer .mhmp-xfill { height: 3px; background: #3b82f6; width: 0%; transition: width .2s; }
+.mhmp-xfer .mhmp-xpct { opacity: .6; font-variant-numeric: tabular-nums; margin-top: 4px; }
 `;
 
 const injectStyles = () => {
@@ -334,6 +355,69 @@ const openBrowser = async () => {
 };
 
 
+
+// ------------------------------------------------------------------ transfer panel
+
+// Copies are started from two different dialogs and outlive both, so progress and cancelling
+// live in their own floating panel rather than inside whichever dialog happened to start them.
+const transfers = {
+  rows: new Map(),
+
+  panel() {
+    if (this.el) return this.el;
+    injectStyles();
+    this.el = document.createElement("div");
+    this.el.className = "mhmp-xfers";
+    this.el.innerHTML = `<h4><span>Copying models</span>
+      <button class="mhmp-all">Cancel all</button></h4><div class="mhmp-body"></div>`;
+    this.el.querySelector(".mhmp-all").onclick = () => this.cancel();
+    this.body = this.el.querySelector(".mhmp-body");
+    document.body.appendChild(this.el);
+    return this.el;
+  },
+
+  async cancel(key) {
+    try {
+      await call("/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(key ? { key } : {}),
+      });
+    } catch (err) {
+      toast("error", "Could not cancel", err.message);
+    }
+  },
+
+  start(key, path, total) {
+    this.panel();
+    const row = document.createElement("div");
+    row.className = "mhmp-xfer";
+    row.innerHTML = `<div class="mhmp-xname"><span></span><button>Cancel</button></div>
+      <div class="mhmp-xbar"><div class="mhmp-xfill"></div></div>
+      <div class="mhmp-xpct">waiting…</div>`;
+    row.querySelector("span").textContent = path;
+    row.querySelector("span").title = path;
+    row.querySelector("button").onclick = () => this.cancel(key);
+    this.body.appendChild(row);
+    this.rows.set(key, row);
+  },
+
+  progress(key, copied, total) {
+    const row = this.rows.get(key);
+    if (!row) return this.start(key, key, total);
+    const pct = total ? Math.round((copied / total) * 100) : 0;
+    row.querySelector(".mhmp-xfill").style.width = `${pct}%`;
+    row.querySelector(".mhmp-xpct").textContent =
+      `${pct}% · ${fmtSize(copied)} / ${fmtSize(total)}`;
+  },
+
+  finish(key) {
+    this.rows.get(key)?.remove();
+    this.rows.delete(key);
+    if (this.rows.size === 0) { this.el?.remove(); this.el = null; }
+  },
+};
+
 // ------------------------------------------------------------------- missing models
 
 /** Every combo widget in the open graph whose value is not one of its own options. */
@@ -563,17 +647,29 @@ app.registerExtension({
     const on = (event, handler) =>
       api.addEventListener(`mhnodes.model_puller.${event}`, ({ detail }) => handler(detail));
 
-    on("start", (d) => activeBrowser?.progress.set(d.key, { copied: 0, total: d.total }));
+    on("start", (d) => {
+      transfers.start(d.key, d.path, d.total);
+      activeBrowser?.progress.set(d.key, { copied: 0, total: d.total });
+    });
     on("progress", (d) => {
+      transfers.progress(d.key, d.copied, d.total);
       activeBrowser?.progress.set(d.key, { copied: d.copied, total: d.total });
       activeBrowser?.showProgress(d.key, d.copied, d.total);
     });
     on("done", (d) => {
+      transfers.finish(d.key);
       activeBrowser?.progress.delete(d.key);
       toast("success", "Model ready", d.path);
       if (activeBrowser) activeBrowser.load(activeBrowser.path);
     });
+    on("cancelled", (d) => {
+      transfers.finish(d.key);
+      activeBrowser?.progress.delete(d.key);
+      toast("info", "Cancelled", `${d.path} — nothing was left on disk.`);
+      if (activeBrowser) activeBrowser.load(activeBrowser.path);
+    });
     on("error", (d) => {
+      transfers.finish(d.key);
       activeBrowser?.progress.delete(d.key);
       toast("error", `Could not pull ${d.path}`, d.error, 8000);
       if (activeBrowser) activeBrowser.load(activeBrowser.path);
