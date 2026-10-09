@@ -10,6 +10,7 @@ from .nodes import (
     AnyToPipe,
     CompositeImageMasked,
     CropImageAndMask,
+    EmptyMask,
     ErodeDilate,
     ImageMaskFromBatch,
     LinearGradientFromCoords,
@@ -52,12 +53,14 @@ class MHNodesExtension(ComfyExtension):
             CropImageAndMask,
             CompositeImageMasked,
             TrailMasks,
-            ErodeDilate,
+            EmptyMask,
+    ErodeDilate,
             AnyToPipe,
             PipeToAny,
             SaveLatentPreview,
             LoadLatentPreview,
             ImageMaskFromBatch,
+            EmptyMask,
         ]
 
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import torch
 from comfy_api.latest import io
 
+from .utils import MAX_RESOLUTION
+
 
 class TrailMasks(io.ComfyNode):
     @classmethod
@@ -57,3 +59,36 @@ class TrailMasks(io.ComfyNode):
             trailed[age:] = torch.maximum(trailed[age:], previous)
 
         return io.NodeOutput(trailed)
+
+
+class EmptyMask(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MH_EmptyMask",
+            display_name="Empty Mask",
+            category="MHNodes/mask",
+            description=(
+                "Creates a mask filled with one value, like Create Solid Mask, but with a "
+                "batch size so it can match a video without a separate repeat node."
+            ),
+            search_aliases=["solid mask", "create solid mask", "blank mask"],
+            inputs=[
+                io.Float.Input("value", default=1.0, min=0.0, max=1.0, step=0.01,
+                               tooltip="Fill value. 0 is fully black, 1 fully white."),
+                io.Int.Input("width", default=512, min=1, max=MAX_RESOLUTION, step=1),
+                io.Int.Input("height", default=512, min=1, max=MAX_RESOLUTION, step=1),
+                io.Int.Input("batch_size", default=1, min=1, max=4096, step=1,
+                             tooltip="How many identical masks to return."),
+            ],
+            outputs=[io.Mask.Output(id="mask", display_name="mask")],
+        )
+
+    @classmethod
+    def execute(cls, value, width, height, batch_size) -> io.NodeOutput:
+        import comfy.model_management
+
+        return io.NodeOutput(torch.full(
+            (batch_size, height, width), value,
+            dtype=torch.float32, device=comfy.model_management.intermediate_device(),
+        ))

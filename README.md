@@ -11,6 +11,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Linear Gradient from Coords** | `MHNodes/generate` | Generates a black-to-white linear gradient defined by two points. |
 | **Crop Image and Mask** | `MHNodes/image` | Crops an image and/or a mask to a fixed size by alignment and offset, returning paste coordinates. |
 | **Composite Image Masked** | `MHNodes/image` | Pastes a foreground onto a background with separate canvas-space and foreground-space masks. |
+| **Empty Mask** | `MHNodes/mask` | Solid-value mask with a batch size, which the core node lacks. |
 | **Trail Masks** | `MHNodes/mask` | Merges each mask frame with the previous N, optionally fading, for motion trails. |
 | **Erode / Dilate (RGB)** | `MHNodes/image` | Per-channel morphology: dilate, erode, open, close. Pure torch. |
 | **Any to Pipe** | `MHNodes/pipe` | Bundles up to 5 connections of any type into one link. Nestable. |
