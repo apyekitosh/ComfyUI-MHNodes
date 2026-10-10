@@ -38,6 +38,25 @@ def looks_like_model(value) -> bool:
     return isinstance(value, str) and value.lower().endswith(MODEL_EXTENSIONS)
 
 
+def combo_options(definition) -> list | tuple | None:
+    """The option list of a combo input, whichever API declared it.
+
+    V1 puts the options at position 0; V3 puts the string "COMBO" there and the list under
+    "options" in the settings dict. Handling only the first shape silently skipped every V3
+    loader, which is most of core these days.
+    """
+    if not (isinstance(definition, (list, tuple)) and definition):
+        return None
+    head = definition[0]
+    if isinstance(head, (list, tuple)):
+        return head
+    if len(definition) > 1 and isinstance(definition[1], dict):
+        options = definition[1].get("options")
+        if isinstance(options, (list, tuple)):
+            return options
+    return None
+
+
 def _folder_listings() -> dict[str, set]:
     """Model folders that currently hold model files.
 
@@ -97,6 +116,69 @@ def _resolve(options, listings: dict[str, set]) -> str | None:
     return sorted(winners)[0]
 
 
+def _intercept_map(node_classes) -> dict[tuple[str, str], str]:
+    """Record which folder each dropdown was built from, by watching the call that fills it.
+
+    A loader calls get_filename_list("controlnet") to populate its combo, so wrapping that
+    during the call gives the folder name outright. This is exact where matching the combo's
+    contents against folder listings is not: it still works when the folder is empty, which is
+    precisely when you are pulling the first model of a type.
+    """
+    import folder_paths
+
+    original = folder_paths.get_filename_list
+    if getattr(original, "_mhnodes_watcher", False):
+        return {}
+
+    me = threading.get_ident()
+    recorded: list[tuple[str, int]] = []
+
+    def watcher(folder_name):
+        out = original(folder_name)
+        # Another thread asking at the same moment must not be attributed to this node.
+        if threading.get_ident() == me:
+            recorded.append((folder_paths.map_legacy(folder_name), id(out)))
+        return out
+
+    watcher._mhnodes_watcher = True
+    folder_paths.get_filename_list = watcher
+
+    mapping: dict[tuple[str, str], str] = {}
+    try:
+        for node_type, node_class in node_classes.items():
+            recorded.clear()
+            try:
+                spec = node_class.INPUT_TYPES()
+            except Exception:
+                continue
+            if not recorded:
+                continue
+
+            by_id = {identity: name for name, identity in recorded}
+            queried = {name for name, _ in recorded}
+
+            for section in ("required", "optional"):
+                for input_name, definition in (spec.get(section) or {}).items():
+                    options = combo_options(definition)
+                    if options is None:
+                        continue
+
+                    # The combo holds the very list the call returned.
+                    if id(options) in by_id:
+                        mapping[(node_type, input_name)] = by_id[id(options)]
+                    elif len(queried) == 1 and (
+                        not options or any(looks_like_model(o) for o in options)
+                    ):
+                        # The node decorated the list (prepending "None", say) so identity is
+                        # lost, but it only ever asked about one folder. Combos that clearly
+                        # are not model lists, like ["fp16", "fp32"], are left alone.
+                        mapping[(node_type, input_name)] = next(iter(queried))
+    finally:
+        folder_paths.get_filename_list = original
+
+    return mapping
+
+
 def build_map(force: bool = False) -> dict[tuple[str, str], str]:
     """Map of (node_type, input_name) -> folder name, built once and cached."""
     global _cache
@@ -109,6 +191,7 @@ def build_map(force: bool = False) -> dict[tuple[str, str], str]:
         try:
             import nodes
 
+            # Listings first, before anything wraps get_filename_list.
             listings = _folder_listings()
             # Model paths are configured after this pack is imported, so an early call sees
             # empty folders and would resolve nothing useful. Treat that as "not ready" rather
@@ -121,16 +204,18 @@ def build_map(force: bool = False) -> dict[tuple[str, str], str]:
                     continue
                 for section in ("required", "optional"):
                     for input_name, definition in (spec.get(section) or {}).items():
-                        if not (isinstance(definition, (list, tuple)) and definition):
-                            continue
-                        options = definition[0]
-                        if not isinstance(options, (list, tuple)) or not options:
+                        options = combo_options(definition)
+                        if not options:
                             continue
                         if not any(looks_like_model(o) for o in options):
                             continue
                         folder = _resolve(options, listings)
                         if folder:
                             mapping[(node_type, input_name)] = folder
+
+            # Watching the call that fills each dropdown is exact, so it overrides anything
+            # inferred from contents -- and it reaches the empty folders that inference cannot.
+            mapping.update(_intercept_map(nodes.NODE_CLASS_MAPPINGS))
         except Exception as exc:
             log.warning("could not build the model folder map: %s", exc)
 
