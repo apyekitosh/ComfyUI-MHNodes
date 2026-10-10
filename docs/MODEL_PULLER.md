@@ -128,6 +128,17 @@ ComfyUI exposes no execution hook, so both are patches. If a ComfyUI update brea
 
 A loader's combo is filled from `folder_paths.get_filename_list(folder)`, but the folder name never reaches the client. It is recovered by scoring each combo's options against each folder's listing. On a heavily modded install this resolves ~94% of model combos, custom packs included, with no cooperation from node authors. Unresolved ones are mostly self-downloading nodes that aren't `folder_paths`-backed at all.
 
+**When the folder is empty there are no filenames to match against**, which is precisely when
+you want to pull the first model of a type. For those, the folder is worked out from how the
+node and its input are spelled instead — input name first, then node type, since the node name
+is where bad guesses come from (`CreateHookModelAsLora.ckpt_name` reads as "loras"; every
+ReActor node matches the `reactor` folder).
+
+That guess is a last resort and never overrides the listing: measured across a heavily modded
+install the two disagree on roughly one input in nine. A guessed folder is shown in the
+missing-models list with a `?` and a different colour, so a wrong one is caught before the copy
+starts rather than after.
+
 ## Safety
 
 - Every client-supplied path is confined to the configured root; `..` traversal is rejected.
