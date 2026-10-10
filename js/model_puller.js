@@ -528,8 +528,16 @@ class MissingDialog {
       size.className = "mhmp-size";
       size.textContent = fmtSize(item.size);
       row.appendChild(size);
-      row.insertAdjacentHTML("beforeend",
-        `<span class="mhmp-tag mhmp-have">${item.folder_type}</span>`);
+      // A folder worked out from the node's spelling rather than from the folder's
+      // contents is shown differently, so a wrong guess is caught before the copy starts.
+      const tag = document.createElement("span");
+      tag.className = `mhmp-tag ${item.guessed ? "mhmp-soon" : "mhmp-have"}`;
+      tag.textContent = item.guessed ? `${item.folder_type} ?` : item.folder_type;
+      if (item.guessed) {
+        tag.title = `This folder is empty, so it was worked out from the node name. `
+                  + `Check it is right before pulling.`;
+      }
+      row.appendChild(tag);
     } else {
       const why = document.createElement("span");
       why.className = "mhmp-size";

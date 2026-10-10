@@ -151,6 +151,58 @@ def invalidate() -> None:
         _cache = None
 
 
+#: Input-name stems whose folder cannot be guessed from the spelling.
+NAME_ALIASES = {
+    "ckpt": "checkpoints",
+    "unet": "diffusion_models",
+}
+
+
+def _normalise(text: str) -> str:
+    return "".join(c for c in text.lower() if c.isalnum())
+
+
+def resolve_by_name(node_type: str, input_name: str) -> str | None:
+    """Guess the folder from how the node and its input are spelled.
+
+    A last resort for when the listing cannot decide, which happens precisely when the folder is
+    empty -- and an empty folder is exactly when you most want to pull something into it.
+
+    Measured against the listing method on a heavily modded install, this disagrees on about one
+    in nine inputs, so it must never override it. The input name is tried before the node type
+    because the node name is where the bad guesses come from: CreateHookModelAsLora.ckpt_name
+    reads as "loras", and every ReActor node matches the "reactor" folder.
+    """
+    try:
+        import folder_paths
+
+        known = [n for n in folder_paths.folder_names_and_paths if n not in NON_MODEL_FOLDERS]
+    except Exception:
+        return None
+
+    stem = input_name.lower()
+    for suffix in ("_name", "_file", "name"):
+        if stem.endswith(suffix):
+            stem = stem[: -len(suffix)]
+            break
+    aliased = NAME_ALIASES.get(stem.strip("_"))
+    if aliased and aliased in known:
+        return aliased
+
+    # Longest folder name first, so clip_vision wins over clip.
+    candidates = sorted(((_normalise(n), n) for n in known), key=lambda x: -len(x[0]))
+
+    for haystack in (_normalise(input_name), _normalise(node_type)):
+        for normalised, original in candidates:
+            if normalised and normalised in haystack:
+                return original
+        # "lora_name" should still find "loras", "upscale_model" find "upscale_models".
+        for normalised, original in candidates:
+            if normalised.endswith("s") and normalised[:-1] and normalised[:-1] in haystack:
+                return original
+    return None
+
+
 def roots_for(folder_type: str) -> list[str]:
     """Registered directories ComfyUI searches for this model type, as absolute paths."""
     try:

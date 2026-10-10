@@ -153,11 +153,20 @@ def register(routes) -> None:
             if not (node_type and input_name and isinstance(value, str)):
                 continue
 
+            # The listing is exact but goes blank when the folder is empty -- which is
+            # exactly when you are pulling the first model of a type. Fall back to the
+            # spelling, and mark it so the UI can show the guess for checking.
             folder_type = mapping.get((node_type, input_name))
+            guessed = False
+            if not folder_type:
+                folder_type = folders.resolve_by_name(node_type, input_name)
+                guessed = folder_type is not None
+
             inner = value.replace("\\", "/").lstrip("/")
             entry = {
                 "node_type": node_type, "input_name": input_name, "value": value,
-                "folder_type": folder_type, "available": False, "size": 0, "reason": None,
+                "folder_type": folder_type, "guessed": guessed,
+                "available": False, "size": 0, "reason": None,
             }
 
             if not folder_type:
