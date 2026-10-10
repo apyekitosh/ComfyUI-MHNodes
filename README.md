@@ -17,6 +17,8 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Any to Pipe** | `MHNodes/pipe` | Bundles up to 5 connections of any type into one link. Nestable. |
 | **Pipe to Any** | `MHNodes/pipe` | Unpacks a pipe back into its 5 values. |
 | **Image/Mask from Batch** | `MHNodes/batch` | Slices a run of frames out of an image and/or mask batch. |
+| **Pad Frame Count** | `MHNodes/batch` | Rounds a batch up to a frame count Wan/LTXV/Minimax accepts. |
+| **Pad Frame Count (Advanced)** | `MHNodes/batch` | The same, with solid-colour fill for the added frames. |
 | **Save Latent + Preview** | `MHNodes/latent` | Saves a latent with a fast visual preview beside it. |
 | **Load Latent + Preview** | `MHNodes/latent` | Picks a saved latent by looking at its preview. |
 
@@ -62,6 +64,7 @@ ComfyUI-MHNodes/
     image_io.py      # file I/O
     mask_ops.py      # mask batch operations
     morphology.py    # erode/dilate
+    padding.py       # frame-count padding
     latent_io.py     # save/load latents with previews
     pipe.py          # bundle/unbundle connections
     utils.py         # shared tensor/PIL helpers

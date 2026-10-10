@@ -15,6 +15,8 @@ from .nodes import (
     ImageMaskFromBatch,
     LinearGradientFromCoords,
     LoadLatentPreview,
+    PadFrameCount,
+    PadFrameCountAdvanced,
     PipeToAny,
     SaveImageSequence,
     SaveLatentPreview,
@@ -60,6 +62,8 @@ class MHNodesExtension(ComfyExtension):
             LoadLatentPreview,
             ImageMaskFromBatch,
             EmptyMask,
+            PadFrameCount,
+            PadFrameCountAdvanced,
         ]
 
 
