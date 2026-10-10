@@ -126,13 +126,25 @@ ComfyUI exposes no execution hook, so both are patches. If a ComfyUI update brea
 
 ## Which folder a model belongs to
 
-A loader's combo is filled from `folder_paths.get_filename_list(folder)`, but the folder name never reaches the client. It is recovered by scoring each combo's options against each folder's listing. On a heavily modded install this resolves ~94% of model combos, custom packs included, with no cooperation from node authors. Unresolved ones are mostly self-downloading nodes that aren't `folder_paths`-backed at all.
+The folder name never reaches the client — a loader's combo carries only the filenames. Three
+methods, in order:
 
-**When the folder is empty there are no filenames to match against**, which is precisely when
-you want to pull the first model of a type. For those, the folder is worked out from how the
-node and its input are spelled instead — input name first, then node type, since the node name
-is where bad guesses come from (`CreateHookModelAsLora.ckpt_name` reads as "loras"; every
-ReActor node matches the `reactor` folder).
+1. **Watch the call.** A loader calls `get_filename_list("controlnet")` to fill its dropdown, so
+   wrapping that function while the node builds its inputs gives the folder name outright. This
+   is exact, and it works when the folder is empty. Legacy names are normalised through
+   `map_legacy`, so `unet` becomes `diffusion_models` and `clip` becomes `text_encoders` — which
+   matters, because the server path is built from this name.
+2. **Match the contents.** Score the combo's filenames against each folder's listing. Still used
+   for nodes whose list is assembled in a way the first method cannot attribute.
+3. **Read the spelling.** Last resort, described below.
+
+Both of the first two understand V1 and V3 combos. They serialise differently — V1 puts the
+options at position 0, V3 puts `"COMBO"` there and the list under `options` — and handling only
+the first shape silently skips every V3 loader, which is most of core now.
+
+The spelling fallback covers what neither of the first two can reach — input name first, then
+node type, since the node name is where bad guesses come from (`CreateHookModelAsLora.ckpt_name`
+reads as "loras"; every ReActor node matches the `reactor` folder).
 
 That guess is a last resort and never overrides the listing: measured across a heavily modded
 install the two disagree on roughly one input in nine. A guessed folder is shown in the
