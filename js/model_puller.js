@@ -68,6 +68,8 @@ const CSS = `
 .mhmp-menu button:disabled { opacity: .4; cursor: default; }
 .mhmp-menu .mhmp-mi-keep { color: #8ae6a4; }
 .mhmp-menu .mhmp-mi-remove { color: #ff9a9a; }
+.mhmp-menu .mhmp-mi-armed { background: rgba(255,154,154,.16); font-weight: 600; }
+.mhmp-menu .mhmp-mi-keep.mhmp-mi-armed { background: rgba(138,230,164,.16); }
 .mhmp-menu .mhmp-mi-note { padding: 6px 10px; opacity: .5; font-size: 11px; }
 .mhmp .mhmp-bar { height: 3px; background: #3b82f6; border-radius: 2px; transition: width .2s; }
 .mhmp .mhmp-track { flex: 1; height: 3px; background: rgba(255,255,255,.12); border-radius: 2px; }
@@ -306,12 +308,31 @@ class ModelBrowser {
     const menu = document.createElement("div");
     menu.className = "mhmp-menu";
 
-    const item = (cls, label, enabled, run) => {
+    // Confirmation happens in the menu item itself rather than in a modal: the first click
+    // arms it, the second carries it out. Three deliberate clicks either way, and the question
+    // is asked where you are already looking.
+    const item = (cls, label, armedLabel, enabled, run) => {
       const b = document.createElement("button");
       b.className = cls;
       b.textContent = label;
       b.disabled = !enabled;
-      b.onclick = () => { closeMenu(); run(); };
+      b.__disarm = () => {
+        b.__armed = false;
+        b.textContent = label;
+        b.classList.remove("mhmp-mi-armed");
+      };
+      b.onclick = (event) => {
+        event.stopPropagation();
+        if (!b.__armed) {
+          menu.querySelectorAll("button").forEach((o) => { if (o !== b) o.__disarm?.(); });
+          b.__armed = true;
+          b.textContent = armedLabel;
+          b.classList.add("mhmp-mi-armed");
+          return;
+        }
+        closeMenu();
+        run();
+      };
       menu.appendChild(b);
       return b;
     };
@@ -320,11 +341,14 @@ class ModelBrowser {
     // ours to touch, so the entries are visible but disabled with the reason given.
     const ours = file.state === "managed" || file.state === "kept";
     if (file.state === "kept") {
-      item("mhmp-mi-keep", "✓  Stop keeping", true, () => this.setKept(file, false));
+      item("mhmp-mi-keep", "✓  Stop keeping", "✓  Click again to confirm", true,
+           () => this.setKept(file, false));
     } else {
-      item("mhmp-mi-keep", "✓  Keep", ours, () => this.setKept(file, true));
+      item("mhmp-mi-keep", "✓  Keep", "✓  Click again to confirm", ours,
+           () => this.setKept(file, true));
     }
-    item("mhmp-mi-remove", "✕  Remove from disk", ours, () => this.remove(file));
+    item("mhmp-mi-remove", "✕  Remove from disk", "✕  Click again to delete", ours,
+         () => this.remove(file));
     if (!ours) {
       menu.insertAdjacentHTML("beforeend",
         `<div class="mhmp-mi-note">Installed by hand, so not managed here.</div>`);
@@ -336,18 +360,15 @@ class ModelBrowser {
     menu.style.left = `${Math.min(box.left, window.innerWidth - menu.offsetWidth - 8)}px`;
     menu.style.top = `${box.bottom + height > window.innerHeight ? box.top - height : box.bottom + 4}px`;
     openMenuEl = menu;
-    setTimeout(() => document.addEventListener("pointerdown", closeMenu, { once: true }), 0);
+
+    // Close only on a press OUTSIDE the menu. Closing on any press removed the menu between
+    // pointerdown and click, so the item was detached before its handler could ever run --
+    // the menu just vanished and nothing happened.
+    menuOutsideHandler = (event) => { if (!menu.contains(event.target)) closeMenu(); };
+    setTimeout(() => document.addEventListener("pointerdown", menuOutsideHandler), 0);
   }
 
   async setKept(file, kept) {
-    const ok = await app.extensionManager.dialog.confirm({
-      title: kept ? "Keep this model?" : "Stop keeping this model?",
-      message: kept
-        ? `"${file.name}" will stop being cleaned up automatically and stay until you delete `
-          + `it yourself.`
-        : `"${file.name}" will go back to being cleaned up once it has gone unused.`,
-    });
-    if (!ok) return;
     try {
       await call("/keep", {
         method: "POST",
@@ -362,12 +383,6 @@ class ModelBrowser {
   }
 
   async remove(file) {
-    const ok = await app.extensionManager.dialog.confirm({
-      title: "Delete this model from disk?",
-      message: `"${file.name}" will be deleted locally. It stays on the server, so you can `
-             + `pull it again whenever you need it.`,
-    });
-    if (!ok) return;
     try {
       const result = await call("/delete", {
         method: "POST",
@@ -379,26 +394,6 @@ class ModelBrowser {
       this.load(this.path);
     } catch (err) {
       toast("error", "Could not delete", err.message, 8000);
-    }
-  }
-
-  async keep(file, row) {
-    const ok = await app.extensionManager.dialog.confirm({
-      title: "Keep this model?",
-      message: `"${file.name}" will stop being cleaned up automatically and stay until you `
-             + `delete it yourself.`,
-    });
-    if (!ok) return;
-    try {
-      await call("/keep", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: file.key, kept: true }),
-      });
-      toast("success", "Kept", file.name);
-      this.load(this.path);
-    } catch (err) {
-      toast("error", "Could not keep it", err.message);
     }
   }
 
@@ -450,7 +445,15 @@ class ModelBrowser {
 }
 
 let openMenuEl = null;
-const closeMenu = () => { openMenuEl?.remove(); openMenuEl = null; };
+let menuOutsideHandler = null;
+const closeMenu = () => {
+  if (menuOutsideHandler) {
+    document.removeEventListener("pointerdown", menuOutsideHandler);
+    menuOutsideHandler = null;
+  }
+  openMenuEl?.remove();
+  openMenuEl = null;
+};
 
 let activeBrowser = null;
 

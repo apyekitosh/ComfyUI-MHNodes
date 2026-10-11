@@ -34,7 +34,9 @@ The **⋮** menu on each local row offers:
 - **Remove from disk** — delete it now instead of waiting for it to expire. It stays on the
   server, so it can be pulled again.
 
-Both ask for confirmation, so either is three deliberate clicks. Deleting is bound by the same
+Both confirm in place: the first click arms the entry (*"Click again to delete"*), the second
+carries it out. Three deliberate clicks either way, and the question is asked where you are
+already looking rather than in a modal somewhere else. Deleting is bound by the same
 rules as the automatic cleanup: only files the registry recorded, and only while they still
 match what was written. A model installed by hand shows both entries disabled with the reason.
 
