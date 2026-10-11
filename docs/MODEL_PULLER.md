@@ -87,7 +87,13 @@ model widget in the open graph whose value is not in its own option list, resolv
 folder, and checks the server for it. You get one list with sizes, everything available
 pre-ticked, and a single button.
 
-Nothing is automatic: you see what will be fetched and confirm it. Models that cannot be resolved
+Nothing is automatic: you see what will be fetched and confirm it.
+
+Images, video and audio are ignored. ComfyUI only lists the root of `input/`, so anything in a
+subfolder — everything pasted, in practice — reads as unsatisfied even though it is sitting
+right there. Those would otherwise bury the real misses. The filter blocks known media
+extensions rather than requiring a known model extension, so a model with an unusual extension
+is never dropped by mistake. Models that cannot be resolved
 or are not on the server are listed with the reason, unticked.
 
 Re-run the workflow once the copies finish — ComfyUI re-checks the folder on each request, so the

@@ -28,6 +28,21 @@ MODEL_EXTENSIONS = (
 #: look like a model folder and produce bogus matches.
 NON_MODEL_FOLDERS = frozenset({"configs", "custom_nodes"})
 
+#: Media a workflow loads from the input folder rather than from a model folder. ComfyUI only
+#: lists the root of input/, so anything in a subfolder -- everything pasted, in practice --
+#: reads as unsatisfied and would otherwise fill the missing-models list with images that were
+#: never missing. Blocking known media is safer than requiring a known model extension, which
+#: would quietly drop a model whose extension we had not thought of.
+MEDIA_EXTENSIONS = (
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".svg",
+    ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".gifv",
+    ".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus",
+)
+
+
+def looks_like_media(value) -> bool:
+    return isinstance(value, str) and value.lower().endswith(MEDIA_EXTENSIONS)
+
 MIN_COVERAGE = 0.5
 
 _lock = threading.Lock()
