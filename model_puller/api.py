@@ -321,6 +321,50 @@ def register(routes) -> None:
         registry.instance().flush()
         return web.json_response({"key": key, "kept": kept})
 
+    @routes.post(f"{PREFIX}/delete")
+    async def delete(request):
+        """Remove a pulled model now, rather than waiting for it to expire.
+
+        Bound by the same rule as the purge: only files this tool recorded, and only while they
+        still match what was written. A model installed by hand is never a candidate, and one
+        that was replaced since the pull belongs to whoever replaced it.
+        """
+        body = await request.json()
+        key = (body or {}).get("key")
+        if not key:
+            raise web.HTTPBadRequest(reason="Missing key")
+
+        reg = registry.instance()
+        entry = reg.get(key)
+        if entry is None:
+            raise web.HTTPNotFound(
+                reason="Not a model this tool pulled, so it is not ours to delete."
+            )
+
+        path = entry.get("path")
+        if not path or not os.path.exists(path):
+            reg.forget(key)
+            reg.flush()
+            folders.invalidate()
+            return web.json_response({"key": key, "removed": None, "note": "already gone"})
+
+        if not purge._unchanged(entry, path):
+            raise web.HTTPBadRequest(
+                reason="That file has changed since it was pulled, so it is no longer the one "
+                       "this tool wrote. Delete it by hand if you are sure."
+            )
+
+        try:
+            os.remove(path)
+        except OSError as exc:
+            raise web.HTTPInternalServerError(reason=f"Could not delete: {exc}")
+
+        reg.forget(key)
+        reg.flush()
+        folders.invalidate()
+        log.info("deleted %s on request", key)
+        return web.json_response({"key": key, "removed": path})
+
     @routes.get(f"{PREFIX}/registry")
     async def get_registry(request):
         entries = []
