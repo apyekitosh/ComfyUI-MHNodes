@@ -146,11 +146,19 @@ def register(routes) -> None:
 
         results = []
         seen = set()
+        skipped_media = 0
         for item in items:
             node_type = (item or {}).get("node_type")
             input_name = (item or {}).get("input_name")
             value = (item or {}).get("value")
             if not (node_type and input_name and isinstance(value, str)):
+                continue
+
+            # An image or clip loaded from input/ is not a model and is not missing: ComfyUI
+            # only lists the root of input/, so anything in a subfolder looks unsatisfied.
+            # Listing those would bury the real misses.
+            if folders.looks_like_media(value):
+                skipped_media += 1
                 continue
 
             # The listing is exact but goes blank when the folder is empty -- which is
@@ -203,6 +211,7 @@ def register(routes) -> None:
         return web.json_response({
             "items": results,
             "available": sum(1 for r in results if r["available"]),
+            "skipped_media": skipped_media,
             "server_ok": server_ok,
         })
 

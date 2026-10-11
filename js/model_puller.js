@@ -577,6 +577,13 @@ const pullMissing = async () => {
     return;
   }
 
+  // Images and clips from input/ are filtered out server-side, so a workflow full of pasted
+  // images reports nothing missing rather than a list of things that were never models.
+  if (!data.items.length) {
+    toast("success", "Nothing missing", "Every model this workflow needs is already here.");
+    return;
+  }
+
   const dialog = new MissingDialog(data.items);
   dialog.render();
 };
