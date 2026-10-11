@@ -89,11 +89,17 @@ pre-ticked, and a single button.
 
 Nothing is automatic: you see what will be fetched and confirm it.
 
-Images, video and audio are ignored. ComfyUI only lists the root of `input/`, so anything in a
-subfolder — everything pasted, in practice — reads as unsatisfied even though it is sitting
-right there. Those would otherwise bury the real misses. The filter blocks known media
-extensions rather than requiring a known model extension, so a model with an unusual extension
-is never dropped by mistake. Models that cannot be resolved
+**Only inputs that resolve to a model folder are listed.** A model widget's options came from
+`folder_paths` in the first place, so a real model always resolves to a real model folder;
+anything that does not is not something this tool could pull.
+
+That matters most for images. ComfyUI lists the root of `input/` and nothing below it, so
+anything in a subfolder — everything pasted, in practice — reads as unsatisfied while sitting
+right there. Those used to fill the list and bury the real misses.
+
+Nothing is dropped silently: the reply counts what was skipped, split into media and unmatched,
+and the dialog says so. Media is settled before any resolution runs, so a node whose name
+happens to read like a model folder cannot name-guess an image into the list. Models that cannot be resolved
 or are not on the server are listed with the reason, unticked.
 
 Re-run the workflow once the copies finish — ComfyUI re-checks the folder on each request, so the
