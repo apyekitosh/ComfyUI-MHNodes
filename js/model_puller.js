@@ -577,19 +577,27 @@ const pullMissing = async () => {
     return;
   }
 
-  // Images and clips from input/ are filtered out server-side, so a workflow full of pasted
-  // images reports nothing missing rather than a list of things that were never models.
+  // Only inputs that resolve to a model folder are listed. Media from input/ and anything
+  // unmatched are counted instead, so a workflow full of pasted images reports nothing
+  // missing rather than a list of things that were never models.
   if (!data.items.length) {
-    toast("success", "Nothing missing", "Every model this workflow needs is already here.");
+    const aside = [];
+    if (data.skipped_media) aside.push(`${data.skipped_media} image/clip input(s)`);
+    if (data.skipped_unmatched) aside.push(`${data.skipped_unmatched} unmatched input(s)`);
+    toast("success", "Nothing missing",
+      aside.length ? `No models to pull. Ignored ${aside.join(" and ")}.`
+                   : "Every model this workflow needs is already here.");
     return;
   }
 
-  const dialog = new MissingDialog(data.items);
+  const dialog = new MissingDialog(
+    data.items, (data.skipped_media || 0) + (data.skipped_unmatched || 0));
   dialog.render();
 };
 
 class MissingDialog {
-  constructor(items) {
+  constructor(items, skipped = 0) {
+    this.skipped = skipped;
     this.items = items;
     this.selected = new Set(items.filter((i) => i.available).map((i) => i.path));
   }
@@ -696,9 +704,9 @@ class MissingDialog {
     const blocked = this.items.filter((i) => !i.available).length;
     this.button.disabled = n === 0;
     this.button.textContent = n ? `Pull ${n} model${n > 1 ? "s" : ""}` : "Nothing to pull";
-    this.info.textContent = blocked
-      ? `${n} available, ${blocked} not on the server`
-      : `${n} available`;
+    const parts = [blocked ? `${n} available, ${blocked} not on the server` : `${n} available`];
+    if (this.skipped) parts.push(`${this.skipped} non-model input(s) ignored`);
+    this.info.textContent = parts.join(" · ");
   }
 
   close() {

@@ -147,6 +147,7 @@ def register(routes) -> None:
         results = []
         seen = set()
         skipped_media = 0
+        skipped_unmatched = 0
         for item in items:
             node_type = (item or {}).get("node_type")
             input_name = (item or {}).get("input_name")
@@ -154,16 +155,18 @@ def register(routes) -> None:
             if not (node_type and input_name and isinstance(value, str)):
                 continue
 
-            # An image or clip loaded from input/ is not a model and is not missing: ComfyUI
-            # only lists the root of input/, so anything in a subfolder looks unsatisfied.
-            # Listing those would bury the real misses.
+            # Media is settled before any resolution runs, so a node whose name happens to
+            # read like a model folder can never name-guess an image into the list. These are
+            # not missing at all: ComfyUI lists the root of input/ and nothing below it, so
+            # anything in a subfolder reads as unsatisfied while sitting right there.
             if folders.looks_like_media(value):
                 skipped_media += 1
                 continue
 
-            # The listing is exact but goes blank when the folder is empty -- which is
-            # exactly when you are pulling the first model of a type. Fall back to the
-            # spelling, and mark it so the UI can show the guess for checking.
+            # A model widget's options came from folder_paths, so a real model resolves to a
+            # real model folder. The listing is exact but goes blank when the folder is empty,
+            # which is exactly when you are pulling the first model of a type -- hence the
+            # fallback to spelling, marked so the UI can show the guess for checking.
             folder_type = mapping.get((node_type, input_name))
             guessed = False
             if not folder_type:
@@ -177,9 +180,9 @@ def register(routes) -> None:
                 "available": False, "size": 0, "reason": None,
             }
 
+            # Nothing we could pull, so it is counted rather than listed.
             if not folder_type:
-                entry["reason"] = "could not tell which model folder this belongs to"
-                results.append(entry)
+                skipped_unmatched += 1
                 continue
 
             relative = f"{folder_type}/{inner}"
@@ -212,6 +215,7 @@ def register(routes) -> None:
             "items": results,
             "available": sum(1 for r in results if r["available"]),
             "skipped_media": skipped_media,
+            "skipped_unmatched": skipped_unmatched,
             "server_ok": server_ok,
         })
 
