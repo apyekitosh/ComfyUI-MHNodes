@@ -54,9 +54,21 @@ const CSS = `
 .mhmp .mhmp-have { background: #1d4d2b; color: #8ae6a4; }
 .mhmp .mhmp-soon { background: #5a4410; color: #ffd98a; }
 .mhmp .mhmp-perm { background: #26406b; color: #9cc5ff; }
-.mhmp .mhmp-keep { background: none; border: 1px solid var(--border-color, #555);
-  color: inherit; border-radius: 4px; padding: 2px 9px; cursor: pointer; font-size: 11px; }
-.mhmp .mhmp-keep:hover { border-color: #8ae6a4; color: #8ae6a4; }
+.mhmp .mhmp-kebab { background: none; border: none; color: inherit; cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 2px 6px; border-radius: 4px; opacity: .55; }
+.mhmp .mhmp-kebab:hover { opacity: 1; background: rgba(255,255,255,.08); }
+.mhmp-menu { position: fixed; z-index: 10002; min-width: 190px; padding: 4px;
+  background: var(--comfy-menu-bg, #202020); border: 1px solid var(--border-color, #444);
+  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  font-family: system-ui, sans-serif; font-size: 12px; }
+.mhmp-menu button { display: flex; width: 100%; gap: 8px; align-items: center;
+  background: none; border: none; color: var(--fg-color, #ddd); text-align: left;
+  padding: 7px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.mhmp-menu button:hover:not(:disabled) { background: rgba(255,255,255,.08); }
+.mhmp-menu button:disabled { opacity: .4; cursor: default; }
+.mhmp-menu .mhmp-mi-keep { color: #8ae6a4; }
+.mhmp-menu .mhmp-mi-remove { color: #ff9a9a; }
+.mhmp-menu .mhmp-mi-note { padding: 6px 10px; opacity: .5; font-size: 11px; }
 .mhmp .mhmp-bar { height: 3px; background: #3b82f6; border-radius: 2px; transition: width .2s; }
 .mhmp .mhmp-track { flex: 1; height: 3px; background: rgba(255,255,255,.12); border-radius: 2px; }
 .mhmp footer { padding: 10px 16px; border-top: 1px solid var(--border-color, #444);
@@ -143,7 +155,11 @@ class ModelBrowser {
 
     this.backdrop.querySelector(".mhmp-close").onclick = () => this.close();
     this.backdrop.onclick = (e) => { if (e.target === this.backdrop) this.close(); };
-    this.onKey = (e) => { if (e.key === "Escape") this.close(); };
+    this.onKey = (e) => {
+      if (e.key !== "Escape") return;
+      // Escape dismisses the row menu first, the dialog second.
+      if (openMenuEl) closeMenu(); else this.close();
+    };
     document.addEventListener("keydown", this.onKey);
     this.pullButton.onclick = () => this.pull();
 
@@ -151,6 +167,7 @@ class ModelBrowser {
   }
 
   close() {
+    closeMenu();
     document.removeEventListener("keydown", this.onKey);
     this.backdrop?.remove();
     activeBrowser = null;
@@ -257,21 +274,112 @@ class ModelBrowser {
         : `✓ ${file.days_left}d left`;
       row.appendChild(tag);
 
-      const keep = document.createElement("button");
-      keep.className = "mhmp-keep";
-      keep.textContent = "Keep";
-      keep.onclick = () => this.keep(file, row);
-      row.appendChild(keep);
+      row.appendChild(this.makeKebab(file));
     } else if (file.state === "kept") {
       row.insertAdjacentHTML("beforeend", `<span class="mhmp-tag mhmp-perm">✓ kept</span>`);
+      row.appendChild(this.makeKebab(file));
     } else if (file.state === "permanent") {
       row.insertAdjacentHTML("beforeend", `<span class="mhmp-tag mhmp-perm">✓ installed</span>`);
+      row.appendChild(this.makeKebab(file));
     }
 
     this.rows.set(file.key, row);
     const live = this.progress.get(file.key);
     if (live) this.showProgress(file.key, live.copied, live.total);
     return row;
+  }
+
+  makeKebab(file) {
+    const button = document.createElement("button");
+    button.className = "mhmp-kebab";
+    button.textContent = "⋮";
+    button.title = "More";
+    button.onclick = (event) => {
+      event.stopPropagation();
+      this.openMenu(button, file);
+    };
+    return button;
+  }
+
+  openMenu(anchor, file) {
+    closeMenu();
+    const menu = document.createElement("div");
+    menu.className = "mhmp-menu";
+
+    const item = (cls, label, enabled, run) => {
+      const b = document.createElement("button");
+      b.className = cls;
+      b.textContent = label;
+      b.disabled = !enabled;
+      b.onclick = () => { closeMenu(); run(); };
+      menu.appendChild(b);
+      return b;
+    };
+
+    // Only something this tool pulled can be kept or removed; a hand-installed model is not
+    // ours to touch, so the entries are visible but disabled with the reason given.
+    const ours = file.state === "managed" || file.state === "kept";
+    if (file.state === "kept") {
+      item("mhmp-mi-keep", "✓  Stop keeping", true, () => this.setKept(file, false));
+    } else {
+      item("mhmp-mi-keep", "✓  Keep", ours, () => this.setKept(file, true));
+    }
+    item("mhmp-mi-remove", "✕  Remove from disk", ours, () => this.remove(file));
+    if (!ours) {
+      menu.insertAdjacentHTML("beforeend",
+        `<div class="mhmp-mi-note">Installed by hand, so not managed here.</div>`);
+    }
+
+    document.body.appendChild(menu);
+    const box = anchor.getBoundingClientRect();
+    const height = menu.offsetHeight;
+    menu.style.left = `${Math.min(box.left, window.innerWidth - menu.offsetWidth - 8)}px`;
+    menu.style.top = `${box.bottom + height > window.innerHeight ? box.top - height : box.bottom + 4}px`;
+    openMenuEl = menu;
+    setTimeout(() => document.addEventListener("pointerdown", closeMenu, { once: true }), 0);
+  }
+
+  async setKept(file, kept) {
+    const ok = await app.extensionManager.dialog.confirm({
+      title: kept ? "Keep this model?" : "Stop keeping this model?",
+      message: kept
+        ? `"${file.name}" will stop being cleaned up automatically and stay until you delete `
+          + `it yourself.`
+        : `"${file.name}" will go back to being cleaned up once it has gone unused.`,
+    });
+    if (!ok) return;
+    try {
+      await call("/keep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: file.key, kept }),
+      });
+      toast("success", kept ? "Kept" : "No longer kept", file.name);
+      this.load(this.path);
+    } catch (err) {
+      toast("error", "Could not change it", err.message);
+    }
+  }
+
+  async remove(file) {
+    const ok = await app.extensionManager.dialog.confirm({
+      title: "Delete this model from disk?",
+      message: `"${file.name}" will be deleted locally. It stays on the server, so you can `
+             + `pull it again whenever you need it.`,
+    });
+    if (!ok) return;
+    try {
+      const result = await call("/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: file.key }),
+      });
+      toast("success", "Deleted", result.note === "already gone"
+        ? `${file.name} was already gone` : file.name);
+      this.load(this.path);
+    } catch (err) {
+      toast("error", "Could not delete", err.message, 8000);
+    }
   }
 
   async keep(file, row) {
@@ -340,6 +448,9 @@ class ModelBrowser {
     this.info.textContent = n ? `${n} selected` : "";
   }
 }
+
+let openMenuEl = null;
+const closeMenu = () => { openMenuEl?.remove(); openMenuEl = null; };
 
 let activeBrowser = null;
 
@@ -494,7 +605,11 @@ class MissingDialog {
 
     this.backdrop.querySelector(".mhmp-close").onclick = () => this.close();
     this.backdrop.onclick = (e) => { if (e.target === this.backdrop) this.close(); };
-    this.onKey = (e) => { if (e.key === "Escape") this.close(); };
+    this.onKey = (e) => {
+      if (e.key !== "Escape") return;
+      // Escape dismisses the row menu first, the dialog second.
+      if (openMenuEl) closeMenu(); else this.close();
+    };
     document.addEventListener("keydown", this.onKey);
     this.button.onclick = () => this.pull();
 

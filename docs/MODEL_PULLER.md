@@ -26,7 +26,17 @@ Each file shows one of three states:
 - **✓ _n_ d left** — pulled by this tool, counting down to deletion (amber at ≤ 2 days)
 - **✓ kept** / **✓ installed** — exempt from cleanup, or installed by hand
 
-**Keep** exempts a model from cleanup, after a confirmation. It sets a flag rather than dropping the registry row, so it is reversible and the record of where the model came from survives.
+The **⋮** menu on each local row offers:
+
+- **Keep** — exempt it from cleanup. Sets a flag rather than dropping the registry row, so it
+  stays reversible and the record of where the model came from survives. A kept model shows
+  **Stop keeping** instead.
+- **Remove from disk** — delete it now instead of waiting for it to expire. It stays on the
+  server, so it can be pulled again.
+
+Both ask for confirmation, so either is three deliberate clicks. Deleting is bound by the same
+rules as the automatic cleanup: only files the registry recorded, and only while they still
+match what was written. A model installed by hand shows both entries disabled with the reason.
 
 ## Where pulled models land
 
