@@ -16,6 +16,7 @@ from .nodes import (
     ImageMaskFromTail,
     LinearGradientFromCoords,
     LoadLatentPreview,
+    ModelCompatibleInt,
     PadFrameCount,
     PadFrameCountAdvanced,
     PipeToAny,
@@ -66,6 +67,7 @@ class MHNodesExtension(ComfyExtension):
             EmptyMask,
             PadFrameCount,
             PadFrameCountAdvanced,
+            ModelCompatibleInt,
         ]
 
 
