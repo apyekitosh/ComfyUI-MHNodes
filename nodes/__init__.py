@@ -5,6 +5,7 @@ from .gradient import LinearGradientFromCoords
 from .image_io import SaveImageSequence
 from .latent_io import LoadLatentPreview, SaveLatentPreview
 from .mask_ops import EmptyMask, TrailMasks
+from .model_int import ModelCompatibleInt
 from .morphology import ErodeDilate
 from .padding import PadFrameCount, PadFrameCountAdvanced
 from .pipe import AnyToPipe, PipeToAny
@@ -19,6 +20,7 @@ __all__ = [
     "ImageMaskFromTail",
     "LinearGradientFromCoords",
     "LoadLatentPreview",
+    "ModelCompatibleInt",
     "PadFrameCount",
     "PadFrameCountAdvanced",
     "PipeToAny",
