@@ -1,4 +1,4 @@
-from .batch import ImageMaskFromBatch
+from .batch import ImageMaskFromBatch, ImageMaskFromTail
 from .composite import CompositeImageMasked
 from .crop import CropImageAndMask
 from .gradient import LinearGradientFromCoords
@@ -16,6 +16,7 @@ __all__ = [
     "EmptyMask",
     "ErodeDilate",
     "ImageMaskFromBatch",
+    "ImageMaskFromTail",
     "LinearGradientFromCoords",
     "LoadLatentPreview",
     "PadFrameCount",
