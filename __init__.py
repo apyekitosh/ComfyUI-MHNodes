@@ -16,6 +16,8 @@ from .nodes import (
     ImageMaskFromTail,
     LinearGradientFromCoords,
     LoadLatentPreview,
+    MiniMaxH3AddLatentGuide,
+    MiniMaxH3JoinLatents,
     ModelCompatibleInt,
     PadFrameCount,
     PadFrameCountAdvanced,
@@ -68,6 +70,8 @@ class MHNodesExtension(ComfyExtension):
             PadFrameCount,
             PadFrameCountAdvanced,
             ModelCompatibleInt,
+            MiniMaxH3AddLatentGuide,
+            MiniMaxH3JoinLatents,
         ]
 
 
