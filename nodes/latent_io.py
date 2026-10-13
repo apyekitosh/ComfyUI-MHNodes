@@ -279,10 +279,12 @@ class SaveLatentPreview(io.ComfyNode):
 
         preview_name = os.path.basename(stem) + latent_store.PREVIEW_EXT
         relative = os.path.join(latent_store.SUBFOLDER, subfolder).replace("\\", "/").strip("/")
-        return io.NodeOutput(
-            samples,
-            ui={"images": [{"filename": preview_name, "subfolder": relative, "type": "input"}]},
-        )
+        ui = {"images": [{"filename": preview_name, "subfolder": relative, "type": "input"}]}
+        if len(images) > 1:
+            # Without this the frontend paints only the first frame onto the canvas. It is the
+            # same flag core's Save Animated WEBP sends.
+            ui["animated"] = (True,)
+        return io.NodeOutput(samples, ui=ui)
 
     @classmethod
     def _metadata(cls) -> dict | None:
@@ -370,6 +372,9 @@ class LoadLatentPreview(io.ComfyNode):
                     "preview",
                     options=latent_store.list_previews(),
                     upload=io.UploadType.image,
+                    # V3 has no switch for it, but the upload widget only animates a WebP when
+                    # this is set; without it a video take shows as its first frame.
+                    extra_dict={"animated_image_upload": True},
                     tooltip="A saved preview. The latent of the same name is what is loaded.",
                 ),
             ],
