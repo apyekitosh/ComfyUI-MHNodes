@@ -31,6 +31,89 @@ log = logging.getLogger("MHNodes.LatentIO")
 
 FPS = 24
 NO_TAE = "none"
+NESTED_KEY = "latent_tensor_part_"
+
+
+# ---------------------------------------------------------------- nested latents
+
+def _parts(tensor) -> list[torch.Tensor]:
+    """The tensors inside a latent. Audio-video models (MiniMax H3, LTX 2) carry a NestedTensor
+    of video + audio; everything else is a single plain tensor."""
+    if getattr(tensor, "is_nested", False) and hasattr(tensor, "unbind"):
+        return list(tensor.unbind())
+    return [tensor]
+
+
+def _join(parts: list[torch.Tensor]):
+    if len(parts) == 1:
+        return parts[0]
+    import comfy.nested_tensor
+
+    return comfy.nested_tensor.NestedTensor(parts)
+
+
+# ---------------------------------------------------------------- tiny VAE loading
+
+#: From core's VAELoader.load_taesd. Only these older image TAEs need a scale/shift applied.
+_TAE_SCALE_SHIFT = {
+    "taesd": (0.18215, 0.0),
+    "taesdxl": (0.13025, 0.0),
+    "taesd3": (1.5305, 0.0609),
+    "taef1": (0.3611, 0.1159),
+}
+
+
+def _tae_state_dict(path: str) -> dict:
+    """Bring a vae_approx file into the layout comfy.sd.VAE recognises.
+
+    Video TAEs (taehv, taew, lighttae, taeh3...) already are. Image TAEs come in three shapes:
+    core's split ``<name>_decoder`` file with bare keys, a file already prefixed
+    ``taesd_decoder.``, or the diffusers single file (``decoder.layers.N``). That last one is
+    the same network index for index, except that core's decoder opens with a parameter-free
+    Clamp, so every decoder index is one higher.
+    """
+    import re
+
+    import comfy.utils
+
+    sd = comfy.utils.load_torch_file(path)
+    if "decoder.22.bias" in sd or any(k.startswith("taesd_decoder.") for k in sd):
+        return sd
+
+    if any(k.startswith("decoder.layers.") for k in sd):
+        converted = {}
+        for key, value in sd.items():
+            match = re.match(r"(encoder|decoder)\.layers\.(\d+)\.(.+)", key)
+            if not match:
+                raise ValueError("unrecognised tiny VAE layout")
+            part, index, rest = match.groups()
+            index = int(index) + (1 if part == "decoder" else 0)
+            converted[f"taesd_{part}.{index}.{rest}"] = value
+        sd = converted
+    elif "1.weight" in sd:
+        # A split decoder-only file, as core's VAELoader pairs them.
+        sd = {f"taesd_decoder.{key}": value for key, value in sd.items()}
+    else:
+        raise ValueError("not a tiny VAE layout ComfyUI can load")
+
+    stem = os.path.splitext(os.path.basename(path))[0].lower()
+    for suffix in ("_decoder", "_encoder"):
+        stem = stem.removesuffix(suffix)
+    if stem in _TAE_SCALE_SHIFT:
+        scale, shift = _TAE_SCALE_SHIFT[stem]
+        sd["vae_scale"] = torch.tensor(scale)
+        sd["vae_shift"] = torch.tensor(shift)
+    return sd
+
+
+def _load_tae(path: str, latent_channels: int):
+    import comfy.sd
+
+    sd = _tae_state_dict(path)
+    # Core reads the channel count off the first decoder conv, which is wrong for Flux2: its
+    # 128-channel latent is unpacked to 32 before that conv. The latent itself knows.
+    metadata = {"tae_latent_channels": latent_channels} if "taesd_decoder.1.weight" in sd else None
+    return comfy.sd.VAE(sd=sd, metadata=metadata)
 
 
 # ---------------------------------------------------------------- preview rendering
@@ -171,8 +254,8 @@ class SaveLatentPreview(io.ComfyNode):
         import comfy.utils
         import folder_paths
 
-        tensor = samples["samples"]
-        images, note = cls._render(tensor, tae, source, scale)
+        parts = _parts(samples["samples"])
+        images, note = cls._render(parts[0], tae, source, scale, extra_parts=len(parts) - 1)
 
         base = latent_store.root()
         full_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
@@ -180,10 +263,14 @@ class SaveLatentPreview(io.ComfyNode):
         )
         stem = os.path.join(full_folder, f"{filename}_{counter:05}_")
 
+        # The first part keeps core's key, so core's LoadLatent can still read the video of an
+        # audio-video latent; the rest ride alongside and only our loader puts them back.
         payload = {
-            "latent_tensor": tensor.contiguous(),
+            "latent_tensor": parts[0].contiguous(),
             "latent_format_version_0": torch.tensor([]),
         }
+        for index, part in enumerate(parts[1:], start=1):
+            payload[f"{NESTED_KEY}{index}"] = part.contiguous()
         metadata = cls._metadata()
         comfy.utils.save_torch_file(payload, stem + latent_store.LATENT_EXT, metadata=metadata)
         _write_webp(images, stem + latent_store.PREVIEW_EXT)
@@ -214,30 +301,45 @@ class SaveLatentPreview(io.ComfyNode):
         return meta or None
 
     @classmethod
-    def _render(cls, tensor, tae, source, scale):
-        """Produce preview frames by the first route that works, never raising."""
+    def _render(cls, tensor, tae, source, scale, extra_parts=0):
+        """Produce preview frames by the first route that works, never raising.
+
+        `tensor` is the visual part only; the audio of an audio-video latent is saved but has
+        nothing to show.
+        """
         import comfy.sd
+
+        def card(reason):
+            if extra_parts:
+                reason = f"{reason} (+audio)"
+            return _placeholder(tensor, reason), "placeholder"
 
         # An audio latent is one-dimensional in time; there is nothing to look at.
         if tensor.ndim == 3:
-            return _placeholder(tensor, "audio latent (1D)"), "placeholder"
+            return card("audio latent (1D)")
+
+        failure = None
 
         if source is not None and isinstance(source, comfy.sd.VAE):
             try:
                 return _to_pil(_frames_from_decoded(source.decode(tensor)), scale), "vae"
             except Exception as exc:
                 log.warning("VAE decode failed (%s); trying the next source", exc)
+                failure = "VAE decode failed"
 
         if tae and tae != NO_TAE:
             try:
-                import comfy.utils
                 import folder_paths
 
                 path = folder_paths.get_full_path_or_raise("vae_approx", tae)
-                approx = comfy.sd.VAE(sd=comfy.utils.load_torch_file(path))
+                approx = _load_tae(path, tensor.shape[1])
                 return _to_pil(_frames_from_decoded(approx.decode(tensor)), scale), f"tae {tae}"
+            except ValueError as exc:
+                log.warning("tiny VAE %s failed (%s); trying the next source", tae, exc)
+                failure = str(exc)
             except Exception as exc:
                 log.warning("tiny VAE %s failed (%s); trying the next source", tae, exc)
+                failure = "tiny VAE does not fit this latent"
 
         if source is not None and not isinstance(source, comfy.sd.VAE):
             latent_format = getattr(getattr(source, "model", None), "latent_format", None)
@@ -246,9 +348,9 @@ class SaveLatentPreview(io.ComfyNode):
                 if rgb is not None:
                     # Already at latent resolution, so scale is deliberately not applied.
                     return _to_pil(rgb, 1.0), "latent2rgb"
-                return _placeholder(tensor, "model has no latent2RGB factors"), "placeholder"
+                return card("model has no latent2RGB factors")
 
-        return _placeholder(tensor, "no VAE, tiny VAE or model given"), "placeholder"
+        return card(failure or "no VAE, tiny VAE or model given")
 
 
 class LoadLatentPreview(io.ComfyNode):
@@ -287,7 +389,10 @@ class LoadLatentPreview(io.ComfyNode):
         stored = safetensors.torch.load_file(path, device="cpu")
         # Latents written before the version marker existed were scaled differently.
         multiplier = 1.0 if "latent_format_version_0" in stored else 1.0 / 0.18215
-        return io.NodeOutput({"samples": stored["latent_tensor"].float() * multiplier})
+        parts = [stored["latent_tensor"]]
+        while f"{NESTED_KEY}{len(parts)}" in stored:
+            parts.append(stored[f"{NESTED_KEY}{len(parts)}"])
+        return io.NodeOutput({"samples": _join([part.float() * multiplier for part in parts])})
 
     @classmethod
     def fingerprint_inputs(cls, preview):

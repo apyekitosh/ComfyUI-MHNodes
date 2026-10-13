@@ -36,8 +36,24 @@ Free and instant, using the model's own RGB factors. Two things to know:
 
 `scale` is ignored in this mode, since the output is already tiny.
 
+## Tiny VAE files
+
+Any of these in `models/vae_approx` works:
+
+- **Video TAEs** (`taehv`, `taew2_1`, `lighttaew2_*`, `taeltx2_*`, `taeh3`...): single files, used as they are.
+- **Image TAEs as core ships them**: the `<name>_decoder` / `<name>_encoder` pair.
+- **Image TAEs as one file**, e.g. a single `taef2.safetensors`: the diffusers layout of the same network, converted on load.
+
+A file in some other layout, such as `FLUX2TinyAutoEncoder.safetensors` (a different architecture that ComfyUI itself can't load), gets the placeholder card saying so.
+
+## Audio-video latents
+
+MiniMax H3 and LTX 2 latents carry video and audio together. The preview shows the video and the card notes `+audio`. **Both parts are saved**, and Load Latent + Preview puts them back together, so the latent comes out as it went in.
+
+The video part is stored under core's usual key, so core's `LoadLatent` can still read a moved file. It gets the video only, though.
+
 ## Notes
 - Previews are animated WebP at a fixed 24 fps; a single frame is written as a still, in the same format.
 - An audio latent (rank 3, one-dimensional in time) gets a placeholder card rather than a nonsense decode.
 - If a decode fails the node falls through to the next source rather than erroring — you still get the latent.
-- The latent is written in ComfyUI's own format, so core's `LoadLatent` can read it if you move the file.
+- The latent is written in ComfyUI's own format, so core's `LoadLatent` can read it if you move the file. For an audio-video latent it only gets the video.
