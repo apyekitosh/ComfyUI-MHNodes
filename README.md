@@ -21,6 +21,8 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Pad Frame Count** | `MHNodes/batch` | Rounds a batch up to a frame count Wan/LTXV/Minimax accepts. |
 | **Pad Frame Count (Advanced)** | `MHNodes/batch` | The same, with solid-colour fill for the added frames. |
 | **Model Compatible Int** | `MHNodes/utils` | Rounds a resolution or frame count onto a model's grid, with the latent count. |
+| **Add Latent Guide for MiniMax H3** | `MHNodes/minimax` | Guides a new take with the end of a previous one, straight from its latent. |
+| **Join MiniMax H3 Latents** | `MHNodes/minimax` | Joins a take and its continuation into one latent, cut on a reel boundary. |
 | **Save Latent + Preview** | `MHNodes/latent` | Saves a latent with a fast visual preview beside it. |
 | **Load Latent + Preview** | `MHNodes/latent` | Picks a saved latent by looking at its preview. |
 
@@ -65,6 +67,7 @@ ComfyUI-MHNodes/
     gradient.py      # generators
     image_io.py      # file I/O
     mask_ops.py      # mask batch operations
+    minimax_h3.py    # MiniMax H3 continuation: latent guide, join
     model_int.py     # rounding onto a model's grid
     morphology.py    # erode/dilate
     padding.py       # frame-count padding
