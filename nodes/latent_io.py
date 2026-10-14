@@ -191,8 +191,9 @@ def _to_pil(frames: torch.Tensor, scale: float):
     return [Image.fromarray(f) for f in array]
 
 
-def _write_webp(images, path: str) -> None:
+def _write_webp(images, path: str, exif=None) -> None:
     """One format for both cases: a single frame is a still, several are animated."""
+    extra = {"exif": exif} if exif is not None else {}
     images[0].save(
         path,
         save_all=len(images) > 1,
@@ -201,6 +202,7 @@ def _write_webp(images, path: str) -> None:
         loop=0,
         quality=80,
         method=4,
+        **extra,
     )
 
 
@@ -273,7 +275,7 @@ class SaveLatentPreview(io.ComfyNode):
             payload[f"{NESTED_KEY}{index}"] = part.contiguous()
         metadata = cls._metadata()
         comfy.utils.save_torch_file(payload, stem + latent_store.LATENT_EXT, metadata=metadata)
-        _write_webp(images, stem + latent_store.PREVIEW_EXT)
+        _write_webp(images, stem + latent_store.PREVIEW_EXT, exif=cls._preview_exif(images[0]))
 
         log.info("saved %s (%s)", os.path.basename(stem), note)
 
@@ -285,6 +287,19 @@ class SaveLatentPreview(io.ComfyNode):
             # same flag core's Save Animated WEBP sends.
             ui["animated"] = (True,)
         return io.NodeOutput(samples, ui=ui)
+
+    @classmethod
+    def _preview_exif(cls, first_image):
+        """The workflow, embedded the way core's own WebP saves do it, so dropping a preview onto
+        the canvas loads the workflow that made it. Honours --disable-metadata."""
+        try:
+            from comfy_api.latest import UI
+
+            return UI.ImageSaveHelper._create_webp_metadata(first_image, cls)
+        except Exception as exc:
+            # A missing workflow is not worth losing the take over.
+            log.warning("could not embed the workflow in the preview (%s)", exc)
+            return None
 
     @classmethod
     def _metadata(cls) -> dict | None:

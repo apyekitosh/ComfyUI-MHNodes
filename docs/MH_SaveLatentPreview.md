@@ -54,6 +54,7 @@ The video part is stored under core's usual key, so core's `LoadLatent` can stil
 
 ## Notes
 - Previews are animated WebP at a fixed 24 fps; a single frame is written as a still, in the same format.
+- Previews carry the workflow, embedded the same way core's own WebP saves do it: drop one onto the canvas to load the workflow that made it. Off under `--disable-metadata`, as for core.
 - An audio latent (rank 3, one-dimensional in time) gets a placeholder card rather than a nonsense decode.
 - If a decode fails the node falls through to the next source rather than erroring — you still get the latent.
 - The latent is written in ComfyUI's own format, so core's `LoadLatent` can read it if you move the file. For an audio-video latent it only gets the video.
