@@ -777,13 +777,6 @@ app.registerExtension({
     commands: ["MHNodes.ModelPuller.browse", "MHNodes.ModelPuller.missing"],
   }],
 
-  getCanvasMenuItems() {
-    return [
-      { content: "Pull models from server…", callback: openBrowser },
-      { content: "Pull missing models for this workflow", callback: pullMissing },
-    ];
-  },
-
   async setup() {
     const on = (event, handler) =>
       api.addEventListener(`mhnodes.model_puller.${event}`, ({ detail }) => handler(detail));

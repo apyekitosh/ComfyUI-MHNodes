@@ -18,7 +18,7 @@ Under **Settings → MHNodes → Model Puller**:
 
 ## Pulling
 
-Right-click the canvas → **Pull models from server…**, or the **MHNodes** menu. The browser walks the server tree; the first path segment is the model type, mirroring `models/`.
+**MHNodes** menu → **Pull models from server…**. The browser walks the server tree; the first path segment is the model type, mirroring `models/`.
 
 Each file shows one of three states:
 
@@ -82,7 +82,7 @@ check reports the volume actually written to, not the one the path appears to be
 
 ## Pulling missing models in bulk
 
-**Pull missing models for this workflow** (canvas right-click or the MHNodes menu) collects every
+**Pull missing models for this workflow** (MHNodes menu) collects every
 model widget in the open graph whose value is not in its own option list, resolves each to a model
 folder, and checks the server for it. You get one list with sizes, everything available
 pre-ticked, and a single button.
