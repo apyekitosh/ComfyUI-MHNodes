@@ -25,6 +25,7 @@ from .nodes import (
     SaveImageSequence,
     SaveLatentPreview,
     TrailMasks,
+    VideoPreview,
 )
 
 WEB_DIRECTORY = "./js"
@@ -72,6 +73,7 @@ class MHNodesExtension(ComfyExtension):
             ModelCompatibleInt,
             MiniMaxH3AddLatentGuide,
             MiniMaxH3JoinLatents,
+            VideoPreview,
         ]
 
 

@@ -10,6 +10,7 @@ from .model_int import ModelCompatibleInt
 from .morphology import ErodeDilate
 from .padding import PadFrameCount, PadFrameCountAdvanced
 from .pipe import AnyToPipe, PipeToAny
+from .video import VideoPreview
 
 __all__ = [
     "AnyToPipe",
@@ -30,4 +31,5 @@ __all__ = [
     "SaveImageSequence",
     "SaveLatentPreview",
     "TrailMasks",
+    "VideoPreview",
 ]
