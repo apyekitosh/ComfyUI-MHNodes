@@ -16,6 +16,8 @@ from .nodes import (
     ImageMaskFromTail,
     LinearGradientFromCoords,
     LoadLatentPreview,
+    LoadVideoInput,
+    LoadVideoPath,
     MiniMaxH3AddLatentGuide,
     MiniMaxH3JoinLatents,
     ModelCompatibleInt,
@@ -52,6 +54,13 @@ class MHNodesExtension(ComfyExtension):
         except Exception as exc:
             log.error("latent store did not start: %s", exc)
 
+        try:
+            from . import video_store
+
+            video_store.setup()
+        except Exception as exc:
+            log.error("video preview routes did not start: %s", exc)
+
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
@@ -74,6 +83,8 @@ class MHNodesExtension(ComfyExtension):
             MiniMaxH3AddLatentGuide,
             MiniMaxH3JoinLatents,
             VideoPreview,
+            LoadVideoInput,
+            LoadVideoPath,
         ]
 
 
