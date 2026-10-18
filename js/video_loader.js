@@ -10,7 +10,12 @@ import { api } from "../../scripts/api.js";
 // own video preview is, so the frontend lays it out. Drawing widgets by hand is what makes
 // other packs' previews overflow their nodes.
 
-const LOADERS = { MH_LoadVideoInput: "video", MH_LoadVideoPath: "path" };
+// widget: the input naming the file or folder. source: how the server should read it.
+const LOADERS = {
+  MH_LoadVideoInput: { widget: "video", source: "input" },
+  MH_LoadVideoPath: { widget: "path", source: "path" },
+  MH_LoadImagesPath: { widget: "path", source: "folder" },
+};
 const RANGE_WIDGETS = ["start", "frame_cap", "select_every_nth"];
 const MARGIN = 10;
 
@@ -28,7 +33,7 @@ const chain = (object, key, after) => {
 
 const widgetValue = (node, name) => node.widgets?.find((w) => w.name === name)?.value;
 
-function attachPreview(node, sourceName) {
+function attachPreview(node, { widget: sourceName, source }) {
   const container = document.createElement("div");
   // The player never takes the mouse, so dragging, zooming and wheel over it reach the canvas.
   Object.assign(container.style, {
@@ -92,9 +97,12 @@ function attachPreview(node, sourceName) {
     state.startTime = start / info.fps;
     state.endTime = (lastFrame + 1) / info.fps;
     // Every nth frame can't be shown exactly; playing n times faster shows its effect on motion.
-    video.playbackRate = Math.min(nth, 16);
+    // A folder's preview copy is written at a fixed rate and sped up or slowed down to the
+    // node's fps, so changing fps never rebuilds it.
+    const fps = Number(widgetValue(node, "fps")) || info.fps;
+    video.playbackRate = Math.min(Math.max((nth * fps) / info.fps, 0.0625), 16);
 
-    const proxy = info.proxied ? " · preview copy" : "";
+    const proxy = info.proxied && source !== "folder" ? " · preview copy" : "";
     setLabel(`${count} frames · ${start}–${lastFrame} of ${info.frames}${proxy}`);
     if (video.currentTime < state.startTime || video.currentTime >= state.endTime) {
       video.currentTime = state.startTime;
@@ -146,7 +154,6 @@ function attachPreview(node, sourceName) {
       if (request === state.request) setLabel("preparing preview…");
     }, 400);
     try {
-      const source = sourceName === "video" ? "input" : "path";
       const response = await api.fetchApi(
         "/mhnodes/video/info?" + new URLSearchParams({ source, file: value })
       );
@@ -168,10 +175,10 @@ function attachPreview(node, sourceName) {
   let typing = null;
   const loadSoon = () => {
     clearTimeout(typing);
-    typing = setTimeout(load, sourceName === "path" ? 400 : 0);
+    typing = setTimeout(load, source === "input" ? 0 : 400);
   };
 
-  for (const name of [sourceName, ...RANGE_WIDGETS]) {
+  for (const name of [sourceName, ...RANGE_WIDGETS, "fps"]) {
     const target = node.widgets?.find((w) => w.name === name);
     if (target) chain(target, "callback", name === sourceName ? loadSoon : updateRange);
   }
@@ -245,9 +252,9 @@ app.registerExtension({
   name: "MHNodes.VideoLoader",
 
   nodeCreated(node) {
-    const sourceName = LOADERS[node.comfyClass];
-    if (!sourceName) return;
-    if (sourceName === "video") attachUpload(node);
-    attachPreview(node, sourceName);
+    const loader = LOADERS[node.comfyClass];
+    if (!loader) return;
+    if (loader.source === "input") attachUpload(node);
+    attachPreview(node, loader);
   },
 });

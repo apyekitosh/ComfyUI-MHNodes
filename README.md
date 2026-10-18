@@ -25,6 +25,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Join MiniMax H3 Latents** | `MHNodes/minimax` | Joins a take and its continuation into one latent, cut on a reel boundary. |
 | **Load Video - Input** | `MHNodes/video` | Loads a range of frames + audio from an input video. Previews only that range. |
 | **Load Video - Path** | `MHNodes/video` | The same, from any path on disk; ProRes and the like get a preview copy. |
+| **Load Images - Path** | `MHNodes/video` | Loads an image sequence from a folder, in name order, with the same range preview. |
 | **Video Preview** | `MHNodes/video` | Plays an image batch as video, with optional audio. No VIDEO object needed. |
 | **Save Latent + Preview** | `MHNodes/latent` | Saves a latent with a fast visual preview beside it. |
 | **Load Latent + Preview** | `MHNodes/latent` | Picks a saved latent by looking at its preview. |

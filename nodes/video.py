@@ -288,3 +288,83 @@ class LoadVideoPath(io.ComfyNode):
         from .. import video_store
 
         return _file_fingerprint(video_store.clean_path(path), start, frame_cap, select_every_nth)
+
+
+class LoadImagesPath(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MH_LoadImagesPath",
+            display_name="Load Images - Path",
+            category="MHNodes/video",
+            description=(
+                "Loads an image sequence from a folder, in name order (frame2 before frame10), "
+                "straight to an image batch.\n\n"
+                "The preview plays only the frames that will load. It is built once per folder "
+                "version; fps and select_every_nth only change its speed, so neither rebuilds it."
+            ),
+            inputs=[
+                io.String.Input("path", default="", tooltip="Folder holding the sequence."),
+                *_range_inputs(),
+                io.Float.Input("fps", default=24.0, min=1.0, max=120.0, step=1.0,
+                               tooltip="Rate the sequence plays at. Images carry none of their "
+                                       "own; this drives the preview and the fps output."),
+            ],
+            outputs=[
+                io.Image.Output(id="images", display_name="images"),
+                io.Float.Output(id="fps", display_name="fps",
+                                tooltip="The fps above, divided by n."),
+                io.Int.Output(id="frame_count", display_name="frame_count"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, path, start, frame_cap, select_every_nth, fps) -> io.NodeOutput:
+        import logging
+
+        import numpy as np
+
+        from .. import video_store
+
+        files = video_store.folder_images(video_store.clean_path(path))
+        if not files:
+            raise ValueError(f"No images in {path!r}.")
+        if start >= len(files):
+            raise ValueError(f"start {start} is past the end of a {len(files)}-image folder.")
+
+        # Picked before anything is opened, so skipped frames are never read.
+        chosen = files[start::select_every_nth]
+        if frame_cap:
+            chosen = chosen[:frame_cap]
+
+        frames, size, resized = [], None, []
+        for file in chosen:
+            image = video_store.open_frame(file)
+            if size is None:
+                size = image.size
+            elif image.size != size:
+                # A safeguard, not a feature: a sequence folder shouldn't mix sizes. Matching
+                # the first frame keeps the batch valid; cropping rather than stretching keeps
+                # the stray frame undistorted.
+                resized.append(os.path.basename(file))
+                image = video_store.fit(image, size)
+            frames.append(np.asarray(image))
+        if resized:
+            logging.getLogger("MHNodes.LoadImagesPath").warning(
+                "%d image(s) didn't match the first frame's %dx%d and were fitted to it: %s",
+                len(resized), size[0], size[1], ", ".join(resized[:5]) + (" ..." if len(resized) > 5 else ""),
+            )
+
+        images = torch.from_numpy(np.stack(frames)).float().div_(255.0)
+        return io.NodeOutput(images, fps / select_every_nth, images.shape[0])
+
+    @classmethod
+    def fingerprint_inputs(cls, path, start, frame_cap, select_every_nth, fps):
+        from .. import video_store
+
+        try:
+            files = video_store.folder_images(video_store.clean_path(path))
+            signature = video_store.folder_signature(files)
+        except OSError:
+            signature = f"missing|{path}"
+        return f"{signature}|{start}|{frame_cap}|{select_every_nth}|{fps}"

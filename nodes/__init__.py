@@ -10,7 +10,7 @@ from .model_int import ModelCompatibleInt
 from .morphology import ErodeDilate
 from .padding import PadFrameCount, PadFrameCountAdvanced
 from .pipe import AnyToPipe, PipeToAny
-from .video import LoadVideoInput, LoadVideoPath, VideoPreview
+from .video import LoadImagesPath, LoadVideoInput, LoadVideoPath, VideoPreview
 
 __all__ = [
     "AnyToPipe",
@@ -21,6 +21,7 @@ __all__ = [
     "ImageMaskFromBatch",
     "ImageMaskFromTail",
     "LinearGradientFromCoords",
+    "LoadImagesPath",
     "LoadLatentPreview",
     "LoadVideoInput",
     "LoadVideoPath",

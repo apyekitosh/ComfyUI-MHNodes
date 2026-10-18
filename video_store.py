@@ -179,6 +179,124 @@ def _write_proxy(source: str, target: str) -> None:
             out.mux(aout.encode(None))
 
 
+# ---------------------------------------------------------------- image folders
+
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+#: A folder's preview copy is always written at this rate; the preview plays it faster or slower
+#: to match the node's fps, so changing fps never rebuilds it.
+FOLDER_PREVIEW_FPS = 24
+
+
+def _natural_key(name: str):
+    """frame2 before frame10, as a person would sort them."""
+    import re
+
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", name)]
+
+
+def folder_images(folder: str) -> list[str]:
+    """Image files directly in `folder`, in natural name order."""
+    if not os.path.isdir(folder):
+        raise FileNotFoundError(f"No folder at {folder!r}.")
+    names = [entry.name for entry in os.scandir(folder)
+             if entry.is_file() and os.path.splitext(entry.name)[1].lower() in IMAGE_EXTENSIONS]
+    return [os.path.join(folder, name) for name in sorted(names, key=_natural_key)]
+
+
+def folder_signature(files: list[str]) -> str:
+    """Changes whenever a frame is added, removed or rewritten."""
+    digest = hashlib.sha1()
+    for path in files:
+        stat = os.stat(path)
+        digest.update(f"{path}|{stat.st_size}|{stat.st_mtime_ns}\n".encode("utf-8"))
+    return digest.hexdigest()[:20]
+
+
+def open_frame(path: str, draft_size=None):
+    """An image as PIL RGB, upright, with 16-bit sources scaled down rather than clipped.
+
+    `draft_size` lets a JPEG decode at reduced size, which is most of the cost on big frames.
+    It only ever gives at least that size, so the result is still resized afterwards.
+    """
+    from PIL import Image, ImageOps
+
+    image = Image.open(path)
+    if draft_size is not None:
+        image.draft("RGB", draft_size)
+    image = ImageOps.exif_transpose(image)
+    if image.mode in ("I;16", "I;16B", "I;16L", "I"):
+        image = image.point(lambda value: value * (1 / 256)).convert("L")
+    return image.convert("RGB")
+
+
+def fit(image, size):
+    """Fill `size`, cropping the overflow, so a stray frame is never stretched."""
+    from PIL import Image, ImageOps
+
+    if image.size == size:
+        return image
+    return ImageOps.fit(image, size, method=Image.Resampling.LANCZOS)
+
+
+def folder_info(folder: str) -> dict:
+    files = folder_images(folder)
+    if not files:
+        raise ValueError("no images in this folder")
+    from PIL import Image
+
+    with Image.open(files[0]) as first:
+        width, height = first.size
+    return {"fps": FOLDER_PREVIEW_FPS, "frames": len(files), "width": width, "height": height,
+            "has_audio": False, "playable": False}
+
+
+def ensure_folder_proxy(folder: str) -> str:
+    files = folder_images(folder)
+    if not files:
+        raise ValueError("no images in this folder")
+    name = f"seq_{folder_signature(files)}.mp4"
+    target = os.path.join(proxy_dir(), name)
+    if os.path.isfile(target):
+        return name
+
+    with _proxy_locks_guard:
+        lock = _proxy_locks.setdefault(name, threading.Lock())
+    with lock:
+        if not os.path.isfile(target):
+            partial = target + ".part"
+            try:
+                _write_folder_proxy(files, partial)
+                os.replace(partial, target)
+            finally:
+                if os.path.exists(partial):
+                    os.remove(partial)
+    return name
+
+
+def _write_folder_proxy(files: list[str], target: str) -> None:
+    import av
+
+    from PIL import Image
+
+    fps = Fraction(FOLDER_PREVIEW_FPS)
+    with Image.open(files[0]) as first:
+        width, height = first.size
+    scale = min(1.0, PROXY_LONG_SIDE / max(width, height))
+    size = (_even(round(width * scale)), _even(round(height * scale)))
+
+    with av.open(target, "w", format="mp4") as out:
+        stream = out.add_stream("libx264", rate=fps)
+        stream.width, stream.height, stream.pix_fmt = size[0], size[1], "yuv420p"
+        stream.options = {"crf": "26", "preset": "veryfast"}
+        stream.codec_context.time_base = 1 / fps
+        for index, path in enumerate(files):
+            image = open_frame(path, draft_size=size)
+            frame = av.VideoFrame.from_image(fit(image, size)).reformat(format="yuv420p")
+            frame.pts, frame.time_base = index, 1 / fps
+            out.mux(stream.encode(frame))
+        out.mux(stream.encode(None))
+
+
 # ---------------------------------------------------------------- routes
 
 def _resolve(source: str, value: str) -> str:
@@ -210,6 +328,21 @@ def setup() -> None:
         async def _info(request):
             query = request.rel_url.query
             source, value = query.get("source", ""), query.get("file", "")
+
+            if source == "folder":
+                folder = clean_path(value)
+                try:
+                    info = await asyncio.to_thread(folder_info, folder)
+                    name = await asyncio.to_thread(ensure_folder_proxy, folder)
+                except FileNotFoundError:
+                    raise web.HTTPNotFound(reason="No such folder")
+                except Exception as exc:
+                    raise web.HTTPBadRequest(reason=str(exc))
+                info["url"] = "/view?" + urlencode({"filename": name, "subfolder": PROXY_SUBFOLDER,
+                                                   "type": "temp"})
+                info["proxied"] = True
+                return web.json_response(info)
+
             try:
                 path = _resolve(source, value)
                 info = await asyncio.to_thread(probe, path)

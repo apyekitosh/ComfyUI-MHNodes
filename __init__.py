@@ -15,6 +15,7 @@ from .nodes import (
     ImageMaskFromBatch,
     ImageMaskFromTail,
     LinearGradientFromCoords,
+    LoadImagesPath,
     LoadLatentPreview,
     LoadVideoInput,
     LoadVideoPath,
@@ -85,6 +86,7 @@ class MHNodesExtension(ComfyExtension):
             VideoPreview,
             LoadVideoInput,
             LoadVideoPath,
+            LoadImagesPath,
         ]
 
 
