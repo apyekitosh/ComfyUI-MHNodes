@@ -6,7 +6,7 @@ Core's *Add Guide for MiniMax H3*, fed from a latent instead of an image. Anchor
 - **positive**: conditioning to add the guide to. Chain several guide nodes to stack guides.
 - **latent**: the new take's latent. Only its size is read.
 - **guide**: the previous take. Its last frames become the guide.
-- **frames**: frames to take from the end of the guide. Rounded **down** to a valid length (5, 22, 39...) and to what the guide has.
+- **frames**: frames to take from the end of the guide. Steps through the valid lengths only: 5, 22, 39... (17n + 5). Limited to what the guide has.
 - **frame_idx**: frame of the new take the guide starts at. **0** for continuation. Negative counts from the end.
 - **use_audio**: guide the audio too, if the guide has any.
 - **audio_vae** *(optional)*: connected, the audio is decoded and its tail encoded fresh instead of sliced. See *Audio* below.

@@ -105,9 +105,10 @@ class MiniMaxH3AddLatentGuide(io.ComfyNode):
                 io.Latent.Input("latent", tooltip="The new take's latent. Only its size is read."),
                 io.Latent.Input("guide", tooltip="The previous take. Its last frames become the guide."),
                 io.Int.Input(
-                    "frames", default=22, min=5, max=9999, step=1,
-                    tooltip="Frames to take from the end of the guide. Rounded down to a valid "
-                            "length (5, 22, 39...) and to what the guide has.",
+                    # The frontend snaps to min + k*step, so this only ever offers 5, 22, 39...
+                    "frames", default=22, min=5, max=9984, step=REEL_FRAMES,
+                    tooltip="Frames to take from the end of the guide: 5, 22, 39... (17n + 5). "
+                            "Limited to what the guide has.",
                 ),
                 io.Int.Input(
                     "frame_idx", default=0, min=-9999, max=9999,
@@ -207,8 +208,10 @@ class MiniMaxH3JoinLatents(io.ComfyNode):
                 "for MiniMax H3 does for continuation."
             ),
             inputs=[
-                io.Latent.Input("first", tooltip="The earlier take."),
-                io.Latent.Input("second", tooltip="The continuation, guided by the end of the first."),
+                # Display names only: the ids stay as shipped so saved workflows keep their links.
+                io.Latent.Input("first", display_name="source_latent", tooltip="The earlier take."),
+                io.Latent.Input("second", display_name="new_latent",
+                                tooltip="The continuation, guided by the end of the source."),
                 io.Int.Input(
                     "overlap", default=22, min=5, max=9999, step=1,
                     tooltip="Frames the two share: the overlap output of the guide node.",

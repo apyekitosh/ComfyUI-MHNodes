@@ -3,8 +3,8 @@
 Joins a take and its continuation into one latent, to be decoded as a unit.
 
 ## Inputs
-- **first**: the earlier take.
-- **second**: the continuation, guided by the end of the first at frame 0.
+- **source_latent**: the earlier take.
+- **new_latent**: the continuation, guided by the end of the source at frame 0.
 - **overlap**: the frames the two share. Connect the **overlap** output of *Add Latent Guide for MiniMax H3*.
 
 ## Outputs
