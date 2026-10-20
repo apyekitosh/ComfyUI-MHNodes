@@ -5,7 +5,7 @@ from .gradient import LinearGradientFromCoords
 from .image_io import SaveImageSequence
 from .latent_io import LoadLatentPreview, SaveLatentPreview
 from .mask_ops import EmptyMask, TrailMasks
-from .minimax_h3 import MiniMaxH3AddLatentGuide, MiniMaxH3JoinLatents
+from .minimax_h3 import MiniMaxH3AddLatentGuide, MiniMaxH3ExtendLatent, MiniMaxH3JoinLatents
 from .model_int import ModelCompatibleInt
 from .morphology import ErodeDilate
 from .padding import PadFrameCount, PadFrameCountAdvanced
@@ -26,6 +26,7 @@ __all__ = [
     "LoadVideoInput",
     "LoadVideoPath",
     "MiniMaxH3AddLatentGuide",
+    "MiniMaxH3ExtendLatent",
     "MiniMaxH3JoinLatents",
     "ModelCompatibleInt",
     "PadFrameCount",

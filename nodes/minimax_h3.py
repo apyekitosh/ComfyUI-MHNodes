@@ -44,6 +44,13 @@ def valid_tail(frames: int) -> bool:
     return frames >= 5 and (frames - 5) % REEL_FRAMES == 0
 
 
+def snap_down(frames: int, what: str) -> int:
+    """The largest 17n+5 count not above `frames`, for values that arrive through a wire."""
+    if frames < 5:
+        raise ValueError(f"{what} must be at least 5 frames, got {frames}.")
+    return (frames - 5) // REEL_FRAMES * REEL_FRAMES + 5
+
+
 def audio_length(frames: int) -> int:
     """Audio latent frames H3 pairs with a video of `frames` pixel frames."""
     return round(frames * AUDIO_PER_FRAME)
@@ -262,3 +269,88 @@ class MiniMaxH3JoinLatents(io.ComfyNode):
             audio = torch.cat([audio_a[..., :keep_audio], audio_b], dim=-1)
 
         return io.NodeOutput({"samples": join_parts(video, audio)}, total)
+
+
+def _grid_input(name, default, tooltip):
+    # The frontend snaps to min + k*step, so only 5, 22, 39... are offered.
+    return io.Int.Input(name, default=default, min=5, max=9984, step=REEL_FRAMES, tooltip=tooltip)
+
+
+class MiniMaxH3ExtendLatent(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MH_MiniMaxH3ExtendLatent",
+            display_name="Extend MiniMax H3 Latent",
+            category="MHNodes/minimax",
+            description=(
+                "Continues a take by masking rather than guiding: the end of the source becomes "
+                "the start of a longer latent, held fixed by a noise mask, and only the frames "
+                "after it are generated.\n\n"
+                "The kept tail starts on a reel boundary and the new frames follow on whole reels, "
+                "so the result is a valid H3 length. Join MiniMax H3 Latents puts it back onto "
+                "the source with the same overlap."
+            ),
+            inputs=[
+                io.Latent.Input("latent", tooltip="The take to continue."),
+                _grid_input("length", 39, "Total frames of the new latent, the kept overlap "
+                                          "included: 5, 22, 39... (17n + 5)."),
+                _grid_input("overlap", 22, "Frames kept from the end of the source: 5, 22, "
+                                           "39... (17n + 5). Limited to what the source has."),
+            ],
+            outputs=[
+                io.Latent.Output(id="latent", display_name="latent",
+                                 tooltip="Kept tail, masked, followed by new frames to generate."),
+                io.Int.Output(id="length", display_name="length",
+                              tooltip="Frames actually used, after snapping to the grid."),
+                io.Int.Output(id="overlap", display_name="overlap",
+                              tooltip="Frames actually kept. Feed it to Join MiniMax H3 Latents."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, latent, length, overlap) -> io.NodeOutput:
+        video, audio = split(latent, "latent")
+        source_frames = pixel_frames(video.shape[2])
+        if source_frames < 5:
+            raise ValueError("The latent has fewer than 5 frames, so there is no tail to keep.")
+
+        # Wired values can be anything: both snap down onto the grid, and the overlap can't be
+        # longer than what the source holds.
+        overlap = snap_down(min(snap_down(overlap, "overlap"), source_frames), "overlap")
+        length = snap_down(length, "length")
+        if length <= overlap:
+            raise ValueError(
+                f"length {length} leaves no new frames after a {overlap}-frame overlap. The "
+                f"smallest length that adds any is {overlap + REEL_FRAMES}."
+            )
+
+        kept = latent_frames_for(overlap)
+        total = latent_frames_for(length)
+        batch, channels, _, height, width = video.shape
+
+        # 1 is generated, 0 is kept: the sampler holds kept frames to the source every step.
+        new_video = video.new_zeros((batch, channels, total, height, width))
+        new_video[:, :, :kept] = video[:, :, -kept:]
+        video_mask = video.new_ones((batch, 1, total, height, width))
+        video_mask[:, :, :kept] = 0.0
+
+        new_audio = audio_mask = None
+        if audio is not None:
+            # The tail's audio starts at the same instant as its picture, to the nearest audio
+            # latent frame (40 a second against 24 video frames: at most 12.5 ms off).
+            start = round((source_frames - overlap) * AUDIO_PER_FRAME)
+            tail = audio[..., start:]
+            audio_total = audio_length(length)
+            keep_audio = min(tail.shape[-1], audio_total)
+            new_audio = audio.new_zeros(audio.shape[:-1] + (audio_total,))
+            new_audio[..., :keep_audio] = tail[..., :keep_audio]
+            audio_mask = audio.new_ones((batch, 1) + tuple(audio.shape[2:-1]) + (audio_total,))
+            audio_mask[..., :keep_audio] = 0.0
+
+        out = {
+            "samples": join_parts(new_video, new_audio),
+            # Paired like the samples; the sampler fits each half to its own stream.
+            "noise_mask": join_parts(video_mask, audio_mask),
+        }
+        return io.NodeOutput(out, length, overlap)
