@@ -12,6 +12,7 @@ from .nodes import (
     CropImageAndMask,
     EmptyMask,
     ErodeDilate,
+    ExecutionFlowController,
     ImageMaskFromBatch,
     ImageMaskFromTail,
     LinearGradientFromCoords,
@@ -89,6 +90,7 @@ class MHNodesExtension(ComfyExtension):
             LoadVideoInput,
             LoadVideoPath,
             LoadImagesPath,
+            ExecutionFlowController,
         ]
 
 

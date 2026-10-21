@@ -1,6 +1,7 @@
 from .batch import ImageMaskFromBatch, ImageMaskFromTail
 from .composite import CompositeImageMasked
 from .crop import CropImageAndMask
+from .flow import ExecutionFlowController
 from .gradient import LinearGradientFromCoords
 from .image_io import SaveImageSequence
 from .latent_io import LoadLatentPreview, SaveLatentPreview
@@ -18,6 +19,7 @@ __all__ = [
     "CropImageAndMask",
     "EmptyMask",
     "ErodeDilate",
+    "ExecutionFlowController",
     "ImageMaskFromBatch",
     "ImageMaskFromTail",
     "LinearGradientFromCoords",
