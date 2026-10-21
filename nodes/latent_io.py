@@ -281,7 +281,14 @@ class SaveLatentPreview(io.ComfyNode):
 
         preview_name = os.path.basename(stem) + latent_store.PREVIEW_EXT
         relative = os.path.join(latent_store.SUBFOLDER, subfolder).replace("\\", "/").strip("/")
-        ui = {"images": [{"filename": preview_name, "subfolder": relative, "type": "input"}]}
+        ui = {
+            "images": [{"filename": preview_name, "subfolder": relative, "type": "input"}],
+            "latents": [{
+                "filename": os.path.basename(stem) + latent_store.LATENT_EXT,
+                "subfolder": relative,
+                "type": "input",
+            }],
+        }
         if len(images) > 1:
             # Without this the frontend paints only the first frame onto the canvas. It is the
             # same flag core's Save Animated WEBP sends.

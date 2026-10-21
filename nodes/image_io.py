@@ -107,4 +107,17 @@ class SaveImageSequence(io.ComfyNode):
             )
             written.append(str(target))
 
-        return io.NodeOutput("\n".join(written))
+        # Socket data and history/UI metadata are independent outputs.
+        return io.NodeOutput(
+            "\n".join(written),
+            ui={
+                "text": [f"Saved {len(written)} frames"],
+                "mh_sequences": [{
+                    "schema_version": 1,
+                    "files": written,
+                    "expected_count": len(targets),
+                    "written_count": len(written),
+                    "skipped_count": len(targets) - len(written),
+                }],
+            },
+        )
