@@ -27,10 +27,10 @@ OPERATIONS = {
     "divide": (2, lambda a, b: a / _divisor(b, "divide")),
     "increment": (1, lambda a: a + 1),
     "decrement": (1, lambda a: a - 1),
-    # Both remainders: they differ only for negatives. modulo follows b's sign (Python's %,
-    # -7 mod 3 = 2), residual follows a's (fmod, -7 residual 3 = -1).
     "modulo": (2, lambda a, b: a % _divisor(b, "modulo")),
-    "residual": (2, lambda a, b: math.fmod(a, _divisor(b, "residual"))),
+    # What to add to a to reach the next multiple of b: 23 and 7 give 5 (23 -> 28). Written
+    # (-a) mod b rather than b - (a mod b) so an a already on a multiple gives 0, not b.
+    "complement": (2, lambda a, b: -a % _divisor(b, "complement")),
     "floor": (1, math.floor),
     "ceil": (1, math.ceil),
     "round": (1, _round),
