@@ -23,6 +23,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Any List** | `MHNodes/utils` | Collects up to 100 inputs of one type into a list, to run what follows once per item. |
 | **Any Plot** | `MHNodes/utils` | Expands two lists into every combination, as the cells of a grid. |
 | **List Size** | `MHNodes/utils` | How many items a list has. |
+| **Quick Math** | `MHNodes/utils` | One small operation on one or two numbers, in a three-row node. |
 | **Execution Flow Controller** | `MHNodes/utils` | Passes two values through unchanged, to force the order nodes run in. |
 | **Model Compatible Int** | `MHNodes/utils` | Rounds a resolution or frame count onto a model's grid, with the latent count. |
 | **Add Latent Guide for MiniMax H3** | `MHNodes/minimax` | Guides a new take with the end of a previous one, straight from its latent. |
@@ -77,6 +78,7 @@ ComfyUI-MHNodes/
     gradient.py      # generators
     image_io.py      # file I/O
     mask_ops.py      # mask batch operations
+    math_ops.py      # quick arithmetic
     minimax_h3.py    # MiniMax H3 continuation: latent guide, extend, join
     model_int.py     # rounding onto a model's grid
     morphology.py    # erode/dilate

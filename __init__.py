@@ -30,6 +30,7 @@ from .nodes import (
     PadFrameCount,
     PadFrameCountAdvanced,
     PipeToAny,
+    QuickMath,
     SaveImageSequence,
     SaveLatentPreview,
     TrailMasks,
@@ -97,6 +98,7 @@ class MHNodesExtension(ComfyExtension):
             AnyList,
             AnyPlot,
             ListSize,
+            QuickMath,
         ]
 
 
