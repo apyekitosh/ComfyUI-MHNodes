@@ -20,6 +20,8 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Image/Mask from Tail** | `MHNodes/batch` | The same, counted from the end of the batch, with an optional reverse. |
 | **Pad Frame Count** | `MHNodes/batch` | Rounds a batch up to a frame count Wan/LTXV/Minimax accepts. |
 | **Pad Frame Count (Advanced)** | `MHNodes/batch` | The same, with solid-colour fill for the added frames. |
+| **Any List** | `MHNodes/utils` | Collects up to 100 inputs of one type into a list, to run what follows once per item. |
+| **Any Plot** | `MHNodes/utils` | Expands two lists into every combination, as the cells of a grid. |
 | **Execution Flow Controller** | `MHNodes/utils` | Passes two values through unchanged, to force the order nodes run in. |
 | **Model Compatible Int** | `MHNodes/utils` | Rounds a resolution or frame count onto a model's grid, with the latent count. |
 | **Add Latent Guide for MiniMax H3** | `MHNodes/minimax` | Guides a new take with the end of a previous one, straight from its latent. |
@@ -79,6 +81,7 @@ ComfyUI-MHNodes/
     morphology.py    # erode/dilate
     padding.py       # frame-count padding
     latent_io.py     # save/load latents with previews
+    lists.py         # lists for per-item execution
     pipe.py          # bundle/unbundle connections
     video.py         # video preview/save straight from image batches
     utils.py         # shared tensor/PIL helpers

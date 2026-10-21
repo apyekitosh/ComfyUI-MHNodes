@@ -5,6 +5,7 @@ from .flow import ExecutionFlowController
 from .gradient import LinearGradientFromCoords
 from .image_io import SaveImageSequence
 from .latent_io import LoadLatentPreview, SaveLatentPreview
+from .lists import AnyList, AnyPlot
 from .mask_ops import EmptyMask, TrailMasks
 from .minimax_h3 import MiniMaxH3AddLatentGuide, MiniMaxH3ExtendLatent, MiniMaxH3JoinLatents
 from .model_int import ModelCompatibleInt
@@ -14,6 +15,8 @@ from .pipe import AnyToPipe, PipeToAny
 from .video import LoadImagesPath, LoadVideoInput, LoadVideoPath, VideoPreview
 
 __all__ = [
+    "AnyList",
+    "AnyPlot",
     "AnyToPipe",
     "CompositeImageMasked",
     "CropImageAndMask",
