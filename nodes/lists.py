@@ -81,6 +81,12 @@ class AnyPlot(io.ComfyNode):
                                     is_output_list=True),
                 io.MatchType.Output(template=second, id="list_2", display_name="list_2",
                                     is_output_list=True),
+                # Plain values, not lists, so they reach the next node once rather than per cell:
+                # what an image grid needs to know its shape.
+                io.Int.Output(id="columns", display_name="columns",
+                              tooltip="Length of list_1: the width of the grid."),
+                io.Int.Output(id="rows", display_name="rows",
+                              tooltip="Length of list_2: the height of the grid."),
             ],
         )
 
@@ -90,4 +96,4 @@ class AnyPlot(io.ComfyNode):
             raise ValueError("Any Plot needs both lists to have at least one item.")
         expanded_1 = [a for _ in list_2 for a in list_1]
         expanded_2 = [b for b in list_2 for _ in list_1]
-        return io.NodeOutput(expanded_1, expanded_2)
+        return io.NodeOutput(expanded_1, expanded_2, len(list_1), len(list_2))

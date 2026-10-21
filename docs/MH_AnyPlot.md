@@ -8,6 +8,10 @@ Expands two lists into every combination, as the cells of a grid, so what follow
 
 ## Outputs
 - **list_1** / **list_2**: the expanded lists, the same length, paired cell by cell.
+- **columns**: the length of list_1, the width of the grid.
+- **rows**: the length of list_2, the height of the grid.
+
+**columns** and **rows** are single values, not lists: the next node gets them once, not once per cell. That's what a node assembling the results into an image grid needs to know its shape.
 
 ## Example
 
