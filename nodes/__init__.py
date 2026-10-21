@@ -5,7 +5,7 @@ from .flow import ExecutionFlowController
 from .gradient import LinearGradientFromCoords
 from .image_io import SaveImageSequence
 from .latent_io import LoadLatentPreview, SaveLatentPreview
-from .lists import AnyList, AnyPlot
+from .lists import AnyList, AnyPlot, ListSize
 from .mask_ops import EmptyMask, TrailMasks
 from .minimax_h3 import MiniMaxH3AddLatentGuide, MiniMaxH3ExtendLatent, MiniMaxH3JoinLatents
 from .model_int import ModelCompatibleInt
@@ -26,6 +26,7 @@ __all__ = [
     "ImageMaskFromBatch",
     "ImageMaskFromTail",
     "LinearGradientFromCoords",
+    "ListSize",
     "LoadImagesPath",
     "LoadLatentPreview",
     "LoadVideoInput",

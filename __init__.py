@@ -18,6 +18,7 @@ from .nodes import (
     ImageMaskFromBatch,
     ImageMaskFromTail,
     LinearGradientFromCoords,
+    ListSize,
     LoadImagesPath,
     LoadLatentPreview,
     LoadVideoInput,
@@ -95,6 +96,7 @@ class MHNodesExtension(ComfyExtension):
             ExecutionFlowController,
             AnyList,
             AnyPlot,
+            ListSize,
         ]
 
 

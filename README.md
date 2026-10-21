@@ -22,6 +22,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Pad Frame Count (Advanced)** | `MHNodes/batch` | The same, with solid-colour fill for the added frames. |
 | **Any List** | `MHNodes/utils` | Collects up to 100 inputs of one type into a list, to run what follows once per item. |
 | **Any Plot** | `MHNodes/utils` | Expands two lists into every combination, as the cells of a grid. |
+| **List Size** | `MHNodes/utils` | How many items a list has. |
 | **Execution Flow Controller** | `MHNodes/utils` | Passes two values through unchanged, to force the order nodes run in. |
 | **Model Compatible Int** | `MHNodes/utils` | Rounds a resolution or frame count onto a model's grid, with the latent count. |
 | **Add Latent Guide for MiniMax H3** | `MHNodes/minimax` | Guides a new take with the end of a previous one, straight from its latent. |

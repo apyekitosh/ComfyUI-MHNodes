@@ -97,3 +97,22 @@ class AnyPlot(io.ComfyNode):
         expanded_1 = [a for _ in list_2 for a in list_1]
         expanded_2 = [b for b in list_2 for _ in list_1]
         return io.NodeOutput(expanded_1, expanded_2, len(list_1), len(list_2))
+
+
+class ListSize(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MH_ListSize",
+            display_name="List Size",
+            category="MHNodes/utils",
+            description="How many items a list has. A single value counts as a list of one.",
+            # Taken whole, so the node runs once and counts, rather than once per item.
+            is_input_list=True,
+            inputs=[io.AnyType.Input("list", tooltip="Any list.")],
+            outputs=[io.Int.Output(id="size", display_name="size")],
+        )
+
+    @classmethod
+    def execute(cls, list) -> io.NodeOutput:
+        return io.NodeOutput(len(list))
