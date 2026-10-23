@@ -23,6 +23,8 @@ from .nodes import (
     LoadLatentPreview,
     LoadVideoInput,
     LoadVideoPath,
+    MaskTrackCrop,
+    MaskTrackStitch,
     MiniMaxH3AddLatentGuide,
     MiniMaxH3ExtendLatent,
     MiniMaxH3JoinLatents,
@@ -99,6 +101,8 @@ class MHNodesExtension(ComfyExtension):
             AnyPlot,
             ListSize,
             QuickMath,
+            MaskTrackCrop,
+            MaskTrackStitch,
         ]
 
 

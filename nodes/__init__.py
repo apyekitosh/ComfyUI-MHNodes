@@ -7,6 +7,7 @@ from .image_io import SaveImageSequence
 from .latent_io import LoadLatentPreview, SaveLatentPreview
 from .lists import AnyList, AnyPlot, ListSize
 from .mask_ops import EmptyMask, TrailMasks
+from .mask_track import MaskTrackCrop, MaskTrackStitch
 from .math_ops import QuickMath
 from .minimax_h3 import MiniMaxH3AddLatentGuide, MiniMaxH3ExtendLatent, MiniMaxH3JoinLatents
 from .model_int import ModelCompatibleInt
@@ -32,6 +33,8 @@ __all__ = [
     "LoadLatentPreview",
     "LoadVideoInput",
     "LoadVideoPath",
+    "MaskTrackCrop",
+    "MaskTrackStitch",
     "MiniMaxH3AddLatentGuide",
     "MiniMaxH3ExtendLatent",
     "MiniMaxH3JoinLatents",
