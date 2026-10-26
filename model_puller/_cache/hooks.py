@@ -10,7 +10,7 @@ def install_queue_hooks(queue, bridge):
     A missing API prevents installation; callers must leave collection disabled.
     Startup reconciles positive history, retaining unresolved persisted holds.
     """
-    names = ('put', 'task_done', 'get_current_queue', 'get_history', 'wipe_queue', 'delete_queue_item')
+    names = ('put', 'get', 'task_done', 'get_current_queue', 'get_history', 'wipe_queue', 'delete_queue_item')
     if not all(callable(getattr(queue, name, None)) for name in names):
         raise CacheError('Comfy queue API is incompatible; collection must stay disabled')
     if getattr(queue, '_shared_model_cache_identity', None):
@@ -40,10 +40,25 @@ def install_queue_hooks(queue, bridge):
 
     @wraps(original['task_done'])
     def task_done(*args, **kwargs):
-        result = original['task_done'](*args, **kwargs)
+        try:
+            result = original['task_done'](*args, **kwargs)
+        finally:
+            bridge.execution_owner.set(None)
         # get_history contains positive receipts, including known execution errors.
         running, pending = snapshot()
         bridge.reconcile(dict(prompt(item) for item in [*running, *pending]), original['get_history']().keys())
+        return result
+
+    @wraps(original['get'])
+    def get(*args, **kwargs):
+        # Only the execution context may count loader path resolution as use.
+        # Object-info, dropdown/catalogue probes and other HTTP requests often
+        # call the same resolver without executing a model.
+        bridge.execution_owner.set(None)
+        result = original['get'](*args, **kwargs)
+        if result is not None:
+            identifier, _ = prompt(result[0])
+            bridge.execution_owner.set(identifier)
         return result
 
     def cancellation(name):
@@ -61,6 +76,7 @@ def install_queue_hooks(queue, bridge):
         return wrapped
 
     queue.put = put
+    queue.get = get
     queue.task_done = task_done
     queue.wipe_queue = cancellation('wipe_queue')
     queue.delete_queue_item = cancellation('delete_queue_item')
@@ -77,7 +93,7 @@ def install_path_hook(folder_paths, bridge):
     @wraps(original)
     def resolve(category, name, *args, **kwargs):
         result = original(category, name, *args, **kwargs)
-        if result is not None:
+        if result is not None and bridge.execution_owner.get() is not None:
             bridge.resolved(category, name, result)
         return result
 

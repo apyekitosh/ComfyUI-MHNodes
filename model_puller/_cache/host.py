@@ -11,7 +11,7 @@ from pathlib import Path
 import threading
 import time
 
-from .core import CacheError, Busy, Cancelled, atomic, file_lock
+from .core import CacheError, Busy, Cancelled, atomic, file_lock, canonical, fingerprint
 
 
 class TransferHost:
@@ -55,26 +55,32 @@ class TransferHost:
             return row
 
     def start(self, owner, prompt_id, prompt):
-        models, unknown = self.bridge.dependencies(prompt)
-        if unknown:
-            raise CacheError('Unmapped model dependencies: ' + ', '.join(unknown))
-        fingerprint = sha256(json.dumps({'prompt_id':str(prompt_id), 'prompt':prompt}, sort_keys=True,
+        request_digest = sha256(json.dumps({'prompt_id':str(prompt_id), 'prompt':prompt}, sort_keys=True,
                                         allow_nan=False).encode()).hexdigest()
         path, lock, processing = self._paths(owner)
         with file_lock(lock):
             if path.exists():
                 row = self._read(owner)
-                if row['fingerprint'] != fingerprint:
+                if row['fingerprint'] != request_digest:
                     raise CacheError('Preparation owner already has different frozen parameters')
+                if row.get('version') != 2 and row['status'] not in ('cancelled','failed','handed_off'):
+                    raise CacheError('Old preparation requires explicit reconciliation')
                 return row  # No replay, even after cancellation/failure/restart.
+            bridge = self.bridge.frozen()
+            models, unknown = bridge.dependencies(prompt)
+            if unknown:
+                raise CacheError('Unmapped model dependencies: ' + ', '.join(unknown))
+            physical = bridge.physical(models)
             guard = file_lock(processing, 0); guard.__enter__()
             try:
-                self.cache.hold('prepare:' + owner, models)
-                row = {'version':1, 'owner':owner, 'prompt_id':str(prompt_id), 'fingerprint':fingerprint,
-                       'models':[{'category':c, 'name':n} for c,n in models], 'status':'preparing',
+                self.cache.hold('prepare:' + owner, paths=[p for _,_,p in physical])
+                row = {'version':2, 'owner':owner, 'prompt_id':str(prompt_id), 'fingerprint':request_digest,
+                       'models':[{'category':c, 'name':n, 'path':canonical(p),
+                                  'fingerprint':fingerprint(p) if p.is_file() else None}
+                                 for c,n,p in physical], 'status':'preparing',
                        'copied':0, 'total':0, 'cancel_requested':False, 'error':None}
                 atomic(path, row)
-                thread = threading.Thread(target=self._run, args=(owner,models,guard), daemon=True,
+                thread = threading.Thread(target=self._run, args=(owner,physical,guard,bridge), daemon=True,
                                           name='model-prepare-' + str(prompt_id))
                 thread.start()
             except BaseException:
@@ -82,15 +88,19 @@ class TransferHost:
                 raise
         return row
 
-    def _run(self, owner, models, guard):
+    def _run(self, owner, models, guard, bridge):
+        cache = bridge.cache
         try:
-            total = sum(self.cache.master(c,n).stat().st_size for c,n in models
-                        if not self.bridge.installed(c,n))
+            total = sum(cache.master(c,n).stat().st_size for c,n,p in models if not p.is_file())
             self._update(owner,total=total)
             completed = 0
-            for category,name in models:
-                key = self.cache.key(category,name)
-                missing = not self.bridge.installed(category,name)
+            for category,name,path in models:
+                key = canonical(path)
+                missing = not path.is_file()
+                accepted = next(row for row in self._read(owner)['models']
+                                if row['category']==category and row['name']==name)
+                if accepted['fingerprint'] is not None and (missing or fingerprint(path) != accepted['fingerprint']):
+                    raise CacheError('Installed model changed after preparation was accepted')
 
                 def cancel_copy():
                     if not self._read(owner)['cancel_requested']:
@@ -116,23 +126,25 @@ class TransferHost:
                         if done==size or now-last_report[0]>=.2:
                             self._update(owner,copied=completed+done,current={'category':category,'name':name})
                             last_report[0]=now
-                    self.cache.ensure(category,name,
+                    cache.at(category,name,path).ensure(category,name,
                                       cancelled=cancel_copy,
                                       progress=progress)
                 if missing:
-                    completed += self.cache.target(category,name).stat().st_size
+                    completed += path.stat().st_size
+                cache.touch_path(path)
                 if self._read(owner)['cancel_requested']:
                     raise Cancelled('Preparation cancelled')
             self.invalidate()
             receipts = []
-            entries = self.cache.snapshot()['entries']
-            for c,n in models:
-                entry = entries.get(self.cache.key(c,n),{})
-                actual = self.bridge.installed(c,n)
-                from .core import canonical
-                owned = actual and canonical(actual) == self.cache.key(c,n)
-                receipts.append({'category':c,'name':n,'sha256':entry.get('sha256') if owned else None})
-            self._update(owner,status='ready',copied=completed,receipts=receipts)
+            rows = []
+            for c,n,path in models:
+                actual = bridge.installed(c,n)
+                if actual is None or canonical(actual) != canonical(path):
+                    raise CacheError('Prepared model is not the file Comfy resolves')
+                entry = cache.owned(path) or {}
+                receipts.append({'category':c,'name':n,'sha256':entry.get('sha256')})
+                rows.append({'category':c,'name':n,'path':canonical(path),'fingerprint':fingerprint(path)})
+            self._update(owner,status='ready',copied=completed,receipts=receipts,models=rows)
         except Cancelled:
             self._update(owner,status='cancelled')
             self.cache.release('prepare:' + owner)

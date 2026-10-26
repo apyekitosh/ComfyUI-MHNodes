@@ -96,10 +96,16 @@ def fingerprint(path):
 
 class Cache:
     def __init__(self, state, source, destinations, *, clock=time.time,
-                 before_transfer=None, reserve_bytes=512 * 1024**2, source_categories=None):
+                 before_transfer=None, reserve_bytes=512 * 1024**2, source_categories=None,
+                 registered_roots=None):
         self.state = Path(state).resolve()
         self.source = Path(source).resolve()
         self.destinations = {str(k): Path(v).resolve() for k, v in destinations.items()}
+        self.registered_roots = {k: tuple(Path(p).resolve() for p in paths)
+                                 for k, paths in (registered_roots or
+                                     {k: [v] for k, v in destinations.items()}).items()}
+        if any(root not in self.registered_roots.get(k, ()) for k, root in self.destinations.items()):
+            raise CacheError('Download target is not a registered search root')
         self.source_categories={k:(source_categories or {}).get(k,k) for k in self.destinations}
         if set(source_categories or {})-set(self.destinations):raise CacheError('Source mapping has an unconfigured category')
         for relative in self.source_categories.values():contained(self.source,relative)
@@ -145,6 +151,21 @@ class Cache:
     def key(self, category, relative):
         return canonical(self.target(category, relative))
 
+    def with_destinations(self, destinations, *, registered_roots=None):
+        """Independent location snapshot; never mutate an in-flight cache view."""
+        return Cache(self.state, self.source, destinations, clock=self.clock,
+                     before_transfer=self.before_transfer, reserve_bytes=self.reserve_bytes,
+                     source_categories=self.source_categories,
+                     registered_roots=registered_roots or self.registered_roots)
+
+    def at(self, category, name, path):
+        """Constrain a logical operation to one registered physical filename."""
+        matches = [root for root in self.registered_roots.get(category, ())
+                   if canonical(contained(root, name)) == canonical(path)]
+        if len(matches) != 1:
+            raise CacheError('Model location is not a unique registered root')
+        return self.with_destinations({**self.destinations, category: matches[0]})
+
     def _model_lock(self, key, timeout=30, cancelled=None):
         return file_lock(self.state / 'locks' / (sha256(key.encode()).hexdigest() + '.lock'), timeout, cancelled)
 
@@ -156,21 +177,26 @@ class Cache:
             if path.exists():
                 try:
                     data = json.loads(path.read_text(encoding='utf-8'))
-                    if data['version'] != 1 or not all(isinstance(data[k], dict) for k in ('entries', 'holds', 'reservations')):
+                    if data['version'] != 2 or not all(isinstance(data[k], dict) for k in ('entries', 'holds', 'reservations', 'roots')):
                         raise ValueError('Unsupported registry')
                 except (ValueError, KeyError, TypeError) as exc:
                     raise CacheError('Cache registry is invalid; no files changed') from exc
-                expected = {k: canonical(v) for k, v in self.destinations.items()}
-                if data.get('destinations') != expected or data.get('source') != canonical(self.source):
+                if data.get('fenced') or data.get('source') != canonical(self.source):
                     raise CacheError('Cache roots differ from the recorded authority')
-                if data.get('source_categories',{k:k for k in self.destinations})!=self.source_categories:
+                recorded_mapping = data.get('source_categories', {})
+                if any(recorded_mapping.get(k) != v for k,v in self.source_categories.items()):
                     raise CacheError('Cache source category mapping changed')
             else:
                 # Losing a registry must never cause existing files to be adopted.
-                data = {'version': 1, 'entries': {}, 'holds': {}, 'reservations': {},
+                data = {'version': 2, 'entries': {}, 'holds': {}, 'reservations': {}, 'roots': {},
                         'source': canonical(self.source), 'source_categories':self.source_categories,
-                        'destinations': {k: canonical(v) for k, v in self.destinations.items()}}
+                        }
             original = json.dumps(data, sort_keys=True)
+            for category, paths in self.registered_roots.items():
+                known = data['roots'].setdefault(category, [])
+                for root in paths:
+                    if canonical(root) not in known:
+                        known.append(canonical(root))
             yield data
             if json.dumps(data, sort_keys=True) != original or not path.exists():
                 atomic(path, data)
@@ -179,11 +205,12 @@ class Cache:
         with self._transaction() as data:
             return json.loads(json.dumps(data))
 
-    def hold(self, owner, models=(), *, unknown=False):
+    def hold(self, owner, models=(), *, unknown=False, paths=None):
         """Durable hold before queue admission; owners reconcile, not wall-clock TTLs."""
         if not isinstance(owner, str) or not owner:
             raise CacheError('A durable attempt owner is required')
-        keys = sorted({self.key(category, relative) for category, relative in models})
+        keys = sorted({canonical(p) for p in paths} if paths is not None else
+                      {self.key(category, relative) for category, relative in models})
         with self._transaction() as data:
             current = data['holds'].get(owner)
             if current and (current['keys'] != keys or current['unknown'] != bool(unknown)):
@@ -195,9 +222,23 @@ class Cache:
             data['holds'].pop(owner, None)
 
     def touch(self, category, relative):
-        key = self.key(category, relative)
+        self.touch_path(self.target(category, relative))
+
+    def owned(self, path, *, data=None):
+        entry = (data if data is not None else self.snapshot())['entries'].get(canonical(path))
+        if not entry:
+            return None
+        try:
+            if fingerprint(Path(path)) == {k: entry[k] for k in ('size', 'mtime_ns', 'device', 'inode')}:
+                return entry
+        except OSError:
+            pass
+        return None
+
+    def touch_path(self, path):
+        key = canonical(path)
         with self._transaction() as data:
-            if entry := data['entries'].get(key):
+            if entry := self.owned(path, data=data):
                 entry['last_used'] = max(entry.get('last_used', 0), self.clock())
 
     def keep(self, category, relative, kept=True):
@@ -360,7 +401,16 @@ class Cache:
         snapshot=self.snapshot()
         for key in snapshot['entries']:
             try:
-                self._claim_roots([self.destinations[snapshot['entries'][key]['category']]])
+                recorded = snapshot['entries'][key]
+                path = Path(recorded['path'])
+                roots = [Path(p) for p in snapshot['roots'].get(recorded['category'], [])
+                         if canonical(contained(Path(p), recorded['name'])) == key]
+                # Never recreate an offline root or claim an unverified old drive.
+                if len(roots) != 1 or roots[0] not in self.registered_roots.get(recorded['category'], ()):
+                    result['skipped'].append(key); continue
+                marker = roots[0] / '.model-cache-authority.json'
+                if not roots[0].is_dir() or not marker.is_file() or json.loads(marker.read_text(encoding='utf-8')) != {'version':1,'state':canonical(self.state)}:
+                    result['skipped'].append(key); continue
                 with self._model_lock(key, 0), self._transaction() as data:
                     if any(hold['unknown'] for hold in data['holds'].values()):
                         result['blocked'] = True
@@ -372,7 +422,7 @@ class Cache:
                         result['skipped'].append(key); continue
                     if self.clock() < max(entry['downloaded'], entry['last_used']) + 7 * 86400:
                         continue
-                    path = self.target(entry['category'], entry['name'])
+                    path = contained(roots[0], entry['name'])
                     if canonical(path) != key or str(path) != entry['path']:
                         raise CacheError('Recorded model destination changed')
                     if not path.exists():
@@ -386,6 +436,6 @@ class Cache:
                         path.unlink()
                         del data['entries'][key]
                         result['deleted'].append(key)
-            except Busy:
+            except (Busy, OSError, ValueError):
                 result['skipped'].append(key)
         return result

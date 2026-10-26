@@ -2,4 +2,4 @@
 from .core import Cache, CacheError, Busy, Cancelled
 
 __all__ = ["Cache", "CacheError", "Busy", "Cancelled"]
-VERSION = 1
+VERSION = 2

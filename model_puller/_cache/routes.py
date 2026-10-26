@@ -31,6 +31,11 @@ def register(routes, host, web):
     async def catalogue(request):
         return await asyncio.to_thread(host.bridge.inventory)
 
+    @routes.get(PREFIX + '/capabilities')
+    @local
+    async def capabilities(request):
+        return {'location_protocol':2}
+
     @routes.post(PREFIX + '/startup')
     @local
     async def startup(request):
@@ -40,6 +45,8 @@ def register(routes, host, web):
     @local
     async def prepare(request):
         body = await request.json()
+        if body.get('location_protocol') != 2:
+            raise CacheError('Model preparation location protocol2 is required; update the app/controller')
         owner, prompt_id, prompt = body['owner'], str(UUID(body['prompt_id'])), body['prompt']
         if not isinstance(prompt, dict) or len(prompt) > 4096:
             raise ValueError('Invalid preparation prompt')

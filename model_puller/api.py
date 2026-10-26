@@ -5,7 +5,7 @@ and the only files that can be removed are ones the registry already recorded.
 """
 
 from __future__ import annotations
-from .coordinated import remove_model
+from .coordinated import remove_model, destination_info
 
 import logging
 import os
@@ -125,10 +125,7 @@ def register(routes) -> None:
         preferred = (config.load().get("LocalPath") or "").strip()
         out = {}
         for folder_type, paths in folders.all_roots().items():
-            out[folder_type] = {
-                "roots": paths,
-                "destination": folders.destination_root(folder_type, preferred),
-            }
+            out[folder_type] = destination_info(folder_type, paths, preferred)
         return web.json_response({"targets": out, "preferred": preferred})
 
     @routes.post(f"{PREFIX}/missing")

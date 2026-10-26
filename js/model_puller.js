@@ -731,9 +731,9 @@ app.registerExtension({
     {
       id: S("LocalPath"), category: ["MHNodes", "Model Puller", "Local path"],
       name: "Preferred destination root",
-      tooltip: "Optional. Models are always written into a folder ComfyUI already searches "
-             + "(from extra_model_paths.yaml). When a model type has several registered "
-             + "folders, this picks which one wins; leave blank to use ComfyUI's default.",
+      tooltip: "New downloads use this registered root. With several roots, set a preference; "
+             + "with one, leave blank. Existing models stay where they are. "
+             + "Register new roots in extra_model_paths.yaml first; no drive fallback.",
       type: "text", defaultValue: "",
     },
     {

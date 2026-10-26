@@ -5,19 +5,32 @@ core. The installed MHNodes adapter supplies its existing widget/category map an
 real resolved paths instead of making the app infer Comfy filesystem locations.
 """
 from pathlib import Path
+from contextvars import ContextVar
 
 from .core import CacheError, canonical, MODEL_SUFFIXES
 
 
 class ComfyBridge:
-    def __init__(self, cache, bindings, *, identity, resolve=None, opaque_nodes=()):
+    def __init__(self, cache, bindings, *, identity, resolve=None, opaque_nodes=(), locations=None):
         self.cache = cache
         self.bindings = dict(bindings)
         self.prefix = f'comfy:{identity}:'
         self.resolve = resolve
         self.opaque_nodes=set(opaque_nodes)
+        self.locations = locations
+        self.execution_owner = ContextVar('model_cache_execution_owner', default=None)
         if not identity:
             raise CacheError('Comfy installation identity is required')
+
+    def frozen(self):
+        if self.locations is None:
+            return self
+        cache = self.locations()
+        return ComfyBridge(cache, self.bindings, identity=self.prefix[6:-1],
+                           resolve=self.resolve, opaque_nodes=self.opaque_nodes)
+
+    def physical(self, models):
+        return [(c, n, self.installed(c, n) or self.cache.target(c, n)) for c, n in models]
 
     def installed(self, category, name):
         path = self.resolve(category,name) if self.resolve else self.cache.target(category,name)
@@ -44,10 +57,30 @@ class ComfyBridge:
         return sorted(models), unknown
 
     def submitted(self, prompt_id, prompt):
+        if self.locations is not None:
+            return self.frozen().submitted(prompt_id, prompt)
         models, unknown = self.dependencies(prompt)
-        self.cache.hold(self.prefix + str(prompt_id), models, unknown=bool(unknown))
-        for model in models:
-            self.cache.touch(*model)
+        physical = self.physical(models)
+        # A ready preparation binds this prompt to actual physical files. Search
+        # order or file replacement after preparation must fail before enqueue.
+        directory = self.cache.state / 'preparations'
+        for path in directory.glob('*.json'):
+            import json
+            row = json.loads(path.read_text(encoding='utf-8'))
+            if row.get('prompt_id') == str(prompt_id) and row.get('status') == 'ready':
+                if row.get('version') != 2:
+                    raise CacheError('Old preparation requires explicit reconciliation')
+                expected = {(r['category'], r['name']): r for r in row['models']}
+                if set(expected) != {(c,n) for c,n,_ in physical}:
+                    raise CacheError('Prepared model dependencies changed')
+                from .core import fingerprint
+                for c,n,p in physical:
+                    prior = expected[c,n]
+                    if canonical(p) != prior['path'] or not p.is_file() or fingerprint(p) != prior['fingerprint']:
+                        raise CacheError('Prepared model location or identity changed')
+        self.cache.hold(self.prefix + str(prompt_id), unknown=bool(unknown), paths=[p for _,_,p in physical])
+        for _,_,path in physical:
+            self.cache.touch_path(path)
         return {'models': models, 'unknown': unknown}
 
     def finished(self, prompt_id):
@@ -65,8 +98,8 @@ class ComfyBridge:
     def resolved(self, category, relative, resolved_path):
         # Comfy can choose another search root. Never touch/delete a different file
         # merely because the dropdown's relative filename happens to match.
-        if category in self.cache.destinations and canonical(resolved_path) == self.cache.key(category, relative):
-            self.cache.touch(category, relative)
+        if category in self.cache.destinations:
+            self.cache.touch_path(resolved_path)
 
     def stage(self, prompt, *, progress=None, cancelled=None):
         models, unknown = self.dependencies(prompt)
@@ -81,10 +114,12 @@ class ComfyBridge:
         return models
 
     def inventory(self):
+        if self.locations is not None:
+            return self.frozen().inventory()
         models = self.cache.catalogue()
         for row in models:
             if self.installed(row['category'],row['name']):row['availability']='ready'
-        return {'version': 1, 'models': models,
+        return {'version': 1, 'capabilities': ['physical-locations-v2'], 'models': models,
                 'bindings': [{'node': node, 'input': field, 'category': category}
                              for (node, field), category in sorted(self.bindings.items())],
                 'retention_days': 7}

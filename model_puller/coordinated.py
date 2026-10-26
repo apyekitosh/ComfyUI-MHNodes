@@ -9,6 +9,28 @@ from pathlib import Path
 _bridge = None
 
 
+def preferred_root(config):
+    # The legacy loader deliberately falls back on malformed settings. That is
+    # unsuitable for choosing a write drive: a read error must stop preparation.
+    from ._cache import CacheError
+    path = config._settings_file() if hasattr(config,'_settings_file') else None
+    if path is None:return (config.load().get('LocalPath') or '').strip()
+    try:
+        value = json.loads(Path(path).read_text(encoding='utf-8')).get('MHNodes.ModelPuller.LocalPath','')
+        if not isinstance(value,str):raise ValueError('Preference must be text')
+        return value.strip()
+    except (OSError,ValueError,TypeError,AttributeError) as exc:
+        raise CacheError('Cannot read Preferred destination root; no drive fallback') from exc
+
+
+def destination_info(category, roots, preferred):
+    """A bad preference in one category must not hide all registered roots."""
+    from ._cache.destinations import select_root
+    from ._cache import CacheError
+    try:return {'roots':roots, 'destination':str(select_root(category, roots, preferred))}
+    except CacheError as exc:return {'roots':roots, 'destination':None, 'error':str(exc)}
+
+
 def transfer_permission(settings):
     from ._cache.development import require_resources
     # Production admission is the explicit cache configuration plus durable
@@ -18,10 +40,11 @@ def transfer_permission(settings):
 
 
 def remove_model(key):
-    from ._cache.legacy import split
+    from ._cache.legacy import RegistryView
     if _bridge is None:
         raise RuntimeError('Shared model cache is not initialized')
-    _bridge.cache.remove_managed(*split(key))
+    cache, entry = RegistryView(_bridge.cache, _bridge.installed).location(key)
+    cache.remove_managed(entry['category'],entry['name'])
     from . import folders
     import folder_paths
     folders.invalidate();folder_paths.filename_list_cache.clear()
@@ -44,19 +67,31 @@ def start():
     from ._cache.legacy import install_legacy
     from ._cache.host import TransferHost
     from ._cache.routes import register
+    from ._cache.destinations import select_root
     from . import folders, registry, transfer, purge, api
     import folder_paths
     from server import PromptServer
     server = PromptServer.instance
-    destinations = settings['destinations']
-    for category, target in destinations.items():
-        registered = {str(Path(p).resolve()).casefold() for p in folders.roots_for(category)}
-        if str(Path(target).resolve()).casefold() not in registered:
-            raise ValueError('Cache destination is not a registered Comfy model root: ' + category)
+    # Existing setting is the only preference authority. A request gets a fresh
+    # immutable view; running requests keep the view they were accepted with.
+    registered = {c: folders.roots_for(c) for c in settings['destinations']}
+    destinations = {c: select_root(c, roots, preferred_root(config))
+                    for c, roots in registered.items()}
     cache = Cache(settings['state'], settings['source'], destinations, before_transfer=transfer_permission(settings),
-                  source_categories=settings.get('source_categories'))
+                  source_categories=settings.get('source_categories'), registered_roots=registered)
+    def locations():
+        preferred = preferred_root(config)
+        roots = {c: folders.roots_for(c) for c in destinations}
+        return cache.with_destinations({c:select_root(c, paths, preferred) for c,paths in roots.items()},
+                                       registered_roots=roots)
+    def destination_root(category, preferred=''):
+        from aiohttp import web
+        from ._cache import CacheError
+        try:return str(select_root(category, folders.roots_for(category), preferred_root(config)))
+        except CacheError as exc:raise web.HTTPBadRequest(reason=str(exc)) from exc
+    folders.destination_root = destination_root
     bridge = ComfyBridge(cache, folders.build_map(), identity=settings['comfy_identity'],
-                         resolve=folders.find_local,opaque_nodes=settings.get('opaque_model_nodes',[]))
+                         resolve=folders.find_local,opaque_nodes=settings.get('opaque_model_nodes',[]),locations=locations)
     install_queue_hooks(server.prompt_queue, bridge)
     install_path_hook(folder_paths, bridge)
     def invalidate():
