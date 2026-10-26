@@ -5,6 +5,7 @@ and the only files that can be removed are ones the registry already recorded.
 """
 
 from __future__ import annotations
+from .coordinated import remove_model
 
 import logging
 import os
@@ -368,7 +369,7 @@ def register(routes) -> None:
             )
 
         try:
-            os.remove(path)
+            remove_model(key)
         except OSError as exc:
             raise web.HTTPInternalServerError(reason=f"Could not delete: {exc}")
 

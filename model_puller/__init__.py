@@ -14,6 +14,9 @@ __all__ = ["setup"]
 
 
 def setup() -> None:
+    from .coordinated import start
+    if start():
+        return
     from . import api, config, purge, registry, tracking
 
     settings = config.load()
