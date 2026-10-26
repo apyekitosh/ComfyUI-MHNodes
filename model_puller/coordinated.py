@@ -9,6 +9,14 @@ from pathlib import Path
 _bridge = None
 
 
+def transfer_permission(settings):
+    from ._cache.development import require_resources
+    # Production admission is the explicit cache configuration plus durable
+    # host/queue ownership. These optional fields serve developer tests only.
+    return lambda: require_resources(settings.get('resource_flag_directory'),
+                                    settings.get('resource_flag_family','isgpufree'))
+
+
 def remove_model(key):
     from ._cache.legacy import split
     if _bridge is None:
@@ -40,21 +48,12 @@ def start():
     import folder_paths
     from server import PromptServer
     server = PromptServer.instance
-    resource_directory = Path(settings['resource_flag_directory'])
-    flag = settings['resource_flag_family']
-    if flag not in ('isgpufree', 'thatgpufree'):
-        raise ValueError('Invalid model-transfer resource flag family')
-
-    def resources():
-        if not (resource_directory / (flag + '.true')).is_file() or (resource_directory / (flag + '.false')).exists():
-            raise RuntimeError('Model transfer paused by resource availability flag')
-
     destinations = settings['destinations']
     for category, target in destinations.items():
         registered = {str(Path(p).resolve()).casefold() for p in folders.roots_for(category)}
         if str(Path(target).resolve()).casefold() not in registered:
             raise ValueError('Cache destination is not a registered Comfy model root: ' + category)
-    cache = Cache(settings['state'], settings['source'], destinations, before_transfer=resources,
+    cache = Cache(settings['state'], settings['source'], destinations, before_transfer=transfer_permission(settings),
                   source_categories=settings.get('source_categories'))
     bridge = ComfyBridge(cache, folders.build_map(), identity=settings['comfy_identity'],
                          resolve=folders.find_local,opaque_nodes=settings.get('opaque_model_nodes',[]))
