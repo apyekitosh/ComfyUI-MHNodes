@@ -36,6 +36,7 @@ from .nodes import (
     SaveImageSequence,
     SaveLatentPreview,
     TrailMasks,
+    VAEDecodeDirectory,
     VideoPreview,
 )
 
@@ -103,6 +104,7 @@ class MHNodesExtension(ComfyExtension):
             QuickMath,
             MaskTrackCrop,
             MaskTrackStitch,
+            VAEDecodeDirectory,
         ]
 
 

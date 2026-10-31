@@ -52,6 +52,24 @@ def _join(parts: list[torch.Tensor]):
     return comfy.nested_tensor.NestedTensor(parts)
 
 
+def read_latent(path: str):
+    """A saved .latent as samples: a plain tensor, or a NestedTensor for audio-video latents.
+
+    Reads both what Save Latent + Preview writes and core's own SaveLatent files.
+    """
+    import safetensors.torch
+
+    stored = safetensors.torch.load_file(path, device="cpu")
+    if "latent_tensor" not in stored:
+        raise ValueError(f"{os.path.basename(path)} is not a saved latent.")
+    # Latents written before the version marker existed were scaled differently.
+    multiplier = 1.0 if "latent_format_version_0" in stored else 1.0 / 0.18215
+    parts = [stored["latent_tensor"]]
+    while f"{NESTED_KEY}{len(parts)}" in stored:
+        parts.append(stored[f"{NESTED_KEY}{len(parts)}"])
+    return _join([part.float() * multiplier for part in parts])
+
+
 # ---------------------------------------------------------------- tiny VAE loading
 
 #: From core's VAELoader.load_taesd. Only these older image TAEs need a scale/shift applied.
@@ -405,21 +423,13 @@ class LoadLatentPreview(io.ComfyNode):
 
     @classmethod
     def execute(cls, preview) -> io.NodeOutput:
-        import safetensors.torch
-
         path = latent_store.latent_for(preview)
         if path is None:
             raise FileNotFoundError(
                 f"No latent beside '{preview}'. The pair may have been partly deleted."
             )
 
-        stored = safetensors.torch.load_file(path, device="cpu")
-        # Latents written before the version marker existed were scaled differently.
-        multiplier = 1.0 if "latent_format_version_0" in stored else 1.0 / 0.18215
-        parts = [stored["latent_tensor"]]
-        while f"{NESTED_KEY}{len(parts)}" in stored:
-            parts.append(stored[f"{NESTED_KEY}{len(parts)}"])
-        return io.NodeOutput({"samples": _join([part.float() * multiplier for part in parts])})
+        return io.NodeOutput({"samples": read_latent(path)})
 
     @classmethod
     def fingerprint_inputs(cls, preview):

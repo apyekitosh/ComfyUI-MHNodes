@@ -36,6 +36,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Load Images - Path** | `MHNodes/video` | Loads an image sequence from a folder, in name order, with the same range preview. |
 | **Video Preview** | `MHNodes/video` | Plays an image batch as video, with optional audio. No VIDEO object needed. |
 | **Save Latent + Preview** | `MHNodes/latent` | Saves a latent with a fast visual preview beside it. |
+| **VAE Decode Full Directory** | `MHNodes/latent` | Decodes every saved latent in a folder to mp4s or PNG sequences + mp3, skipping any that fail. |
 | **Load Latent + Preview** | `MHNodes/latent` | Picks a saved latent by looking at its preview. |
 
 Per-node documentation lives in [`docs/`](docs).
@@ -74,6 +75,7 @@ ComfyUI-MHNodes/
   nodes/
     __init__.py      # re-exports every node class
     batch.py         # batch slicing
+    batch_decode.py  # decode a folder of latents
     composite.py     # compositing
     crop.py          # cropping
     flow.py          # execution order

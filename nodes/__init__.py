@@ -1,4 +1,5 @@
 from .batch import ImageMaskFromBatch, ImageMaskFromTail
+from .batch_decode import VAEDecodeDirectory
 from .composite import CompositeImageMasked
 from .crop import CropImageAndMask
 from .flow import ExecutionFlowController
@@ -46,5 +47,6 @@ __all__ = [
     "SaveImageSequence",
     "SaveLatentPreview",
     "TrailMasks",
+    "VAEDecodeDirectory",
     "VideoPreview",
 ]
