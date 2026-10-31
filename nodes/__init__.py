@@ -50,3 +50,5 @@ __all__ = [
     "VAEDecodeDirectory",
     "VideoPreview",
 ]
+
+from .load_av_latent_file import LoadAVLatentFile

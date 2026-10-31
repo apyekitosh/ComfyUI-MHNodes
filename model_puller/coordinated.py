@@ -90,7 +90,10 @@ def start():
         try:return str(select_root(category, folders.roots_for(category), preferred_root(config)))
         except CacheError as exc:raise web.HTTPBadRequest(reason=str(exc)) from exc
     folders.destination_root = destination_root
-    bridge = ComfyBridge(cache, folders.build_map(), identity=settings['comfy_identity'],
+    bindings = folders.build_map()
+    if 'latent_upscale_models' in destinations:
+        bindings[('MinimaxH3LatentUpscaler3D','model_name')] = 'latent_upscale_models'
+    bridge = ComfyBridge(cache, bindings, identity=settings['comfy_identity'],
                          resolve=folders.find_local,opaque_nodes=settings.get('opaque_model_nodes',[]),locations=locations)
     install_queue_hooks(server.prompt_queue, bridge)
     install_path_hook(folder_paths, bridge)
