@@ -6,6 +6,7 @@ from .flow import ExecutionFlowController
 from .gradient import LinearGradientFromCoords
 from .image_io import SaveImageSequence
 from .latent_io import LoadLatentPreview, SaveLatentPreview
+from .load_latent_path import LoadLatentPath
 from .lists import AnyList, AnyPlot, ListSize
 from .mask_ops import EmptyMask, TrailMasks
 from .mask_track import MaskTrackCrop, MaskTrackStitch
@@ -32,6 +33,7 @@ __all__ = [
     "ListSize",
     "LoadImagesPath",
     "LoadLatentPreview",
+    "LoadLatentPath",
     "LoadVideoInput",
     "LoadVideoPath",
     "MaskTrackCrop",

@@ -38,6 +38,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Save Latent + Preview** | `MHNodes/latent` | Saves a latent with a fast visual preview beside it. |
 | **VAE Decode Full Directory** | `MHNodes/latent` | Decodes every saved latent in a folder to mp4s or PNG sequences + mp3, skipping any that fail. |
 | **Load Latent + Preview** | `MHNodes/latent` | Picks a saved latent by looking at its preview. |
+| **Load Latent from Path** | `MHNodes/latent` | Loads a saved latent from an absolute path on the Comfy server, without a preview. Supports plain and joint audio-video latents. |
 
 Per-node documentation lives in [`docs/`](docs).
 
