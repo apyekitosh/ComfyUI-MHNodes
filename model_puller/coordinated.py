@@ -4,9 +4,18 @@ This file is copied into model_puller alongside a versioned copy of the canonica
 stdlib cache core. Importing this module alone does not start or change anything.
 """
 import json
+import logging
+import os
 from pathlib import Path
 
 _bridge = None
+_retired = False
+
+
+def standalone_cleanup_allowed():
+    # Retiring a shared authority must not retire the ordinary puller, or let
+    # its pre-handover registry automatically delete handed-over model files.
+    return not _retired
 
 
 def preferred_root(config):
@@ -25,6 +34,9 @@ def preferred_root(config):
 
 def destination_info(category, roots, preferred):
     """A bad preference in one category must not hide all registered roots."""
+    if _bridge is None:
+        from . import folders
+        return {'roots':roots,'destination':folders.destination_root(category,preferred)}
     from ._cache.destinations import select_root
     from ._cache import CacheError
     try:return {'roots':roots, 'destination':str(select_root(category, roots, preferred))}
@@ -40,9 +52,16 @@ def transfer_permission(settings):
 
 
 def remove_model(key):
-    from ._cache.legacy import RegistryView
     if _bridge is None:
-        raise RuntimeError('Shared model cache is not initialized')
+        from . import registry,purge,folders
+        entry=registry.instance().get(key)
+        path=entry.get('path') if entry else None
+        if not path or not purge._unchanged(entry,path):
+            raise OSError('Not an unchanged model downloaded by this puller')
+        os.remove(path)
+        folders.invalidate()
+        return
+    from ._cache.legacy import RegistryView
     cache, entry = RegistryView(_bridge.cache, _bridge.installed).location(key)
     cache.remove_managed(entry['category'],entry['name'])
     from . import folders
@@ -51,12 +70,17 @@ def remove_model(key):
 
 
 def start():
-    global _bridge
+    global _bridge,_retired
     from . import config
     path = Path(config.data_dir()) / 'coordinated-cache.json'
     if not path.exists():
         return False  # No activation/configuration change on an existing install.
     settings = json.loads(path.read_text(encoding='utf-8'))
+    if settings.get('retired',False):
+        _retired=True
+        logging.getLogger('MHNodes.ModelPuller').info(
+            'Shared cache retired here; standalone puller enabled, automatic cleanup paused')
+        return False
     if not settings.get('enabled', False):
         return False
     # Any failure propagates to MHNodes' existing guarded setup. Never run its old

@@ -5,7 +5,7 @@ and the only files that can be removed are ones the registry already recorded.
 """
 
 from __future__ import annotations
-from .coordinated import remove_model, destination_info
+from .coordinated import remove_model, destination_info, standalone_cleanup_allowed
 
 import logging
 import os
@@ -396,7 +396,7 @@ def register(routes) -> None:
             body = await request.json()
         except Exception:
             pass
-        return web.json_response(purge.run(dry_run=bool(body.get("dry_run"))))
+        return web.json_response(purge.run(dry_run=bool(body.get("dry_run")) or not standalone_cleanup_allowed()))
 
 
 def _run_pull(key: str, relative: str, source: str, destination: str,

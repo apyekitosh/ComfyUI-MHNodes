@@ -14,7 +14,7 @@ __all__ = ["setup"]
 
 
 def setup() -> None:
-    from .coordinated import start
+    from .coordinated import start, standalone_cleanup_allowed
     if start():
         return
     from . import api, config, purge, registry, tracking
@@ -40,6 +40,7 @@ def setup() -> None:
 
     # The purge runs now, while nothing is loaded and nobody has a session open.
     try:
-        purge.run()
+        if standalone_cleanup_allowed():
+            purge.run()
     except Exception as exc:
         log.error("purge failed: %s", exc)
