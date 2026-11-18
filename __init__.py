@@ -10,6 +10,7 @@ from .nodes import (
     AnyList,
     AnyPlot,
     AnyToPipe,
+    BlockifyMaskToGrid,
     CompositeImageMasked,
     CropImageAndMask,
     EmptyMask,
@@ -109,6 +110,7 @@ class MHNodesExtension(ComfyExtension):
             MaskTrackCrop,
             MaskTrackStitch,
             VAEDecodeDirectory,
+            BlockifyMaskToGrid,
         ]
 
 

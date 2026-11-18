@@ -8,6 +8,7 @@ from .image_io import SaveImageSequence
 from .latent_io import LoadLatentPreview, SaveLatentPreview
 from .load_latent_path import LoadLatentPath
 from .lists import AnyList, AnyPlot, ListSize
+from .mask_grid import BlockifyMaskToGrid
 from .mask_ops import EmptyMask, TrailMasks
 from .mask_track import MaskTrackCrop, MaskTrackStitch
 from .math_ops import QuickMath
@@ -22,6 +23,7 @@ __all__ = [
     "AnyList",
     "AnyPlot",
     "AnyToPipe",
+    "BlockifyMaskToGrid",
     "CompositeImageMasked",
     "CropImageAndMask",
     "EmptyMask",
