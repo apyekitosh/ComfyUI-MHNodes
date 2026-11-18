@@ -68,7 +68,7 @@ class BlockifyMaskToGrid(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="MH_BlockifyMaskToGrid",
-            display_name="Blockify Mask to Grid",
+            display_name="Blockify Mask to H3 Grid",
             category="MHNodes/mask",
             description=(
                 "Snaps a mask onto MiniMax H3's latent grid, to stop moving masks bleeding. Always "
@@ -78,8 +78,7 @@ class BlockifyMaskToGrid(io.ComfyNode):
             ),
             inputs=[
                 io.Mask.Input("mask"),
-                io.Float.Input("binarize_threshold", display_name="binarize threshold",
-                               default=0.5, min=0.0, max=1.0, step=0.01,
+                io.Float.Input("binarize_threshold", default=0.5, min=0.0, max=1.0, step=0.01,
                                tooltip="Pixels at or above this are white, below are black."),
                 io.Int.Input("cell_threshold", default=4, min=1, max=CELL * CELL,
                              tooltip=f"White pixels needed for a {CELL}x{CELL} cell to fill; "

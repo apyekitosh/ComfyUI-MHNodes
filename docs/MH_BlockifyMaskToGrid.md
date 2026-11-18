@@ -1,10 +1,10 @@
-# Blockify Mask to Grid
+# Blockify Mask to H3 Grid
 
 Snaps a mask onto MiniMax H3's latent grid, in space and in time. Meant for moving masks that "bleed", leaving a visible trace of where the mask was: lining every masked region up with what the model actually sees is what stops it.
 
 ## Inputs
 - **mask**: the mask to snap.
-- **binarize threshold**: pixels at or above this become white, below it black. 0.5 by default.
+- **binarize_threshold**: pixels at or above this become white, below it black. 0.5 by default.
 - **cell_threshold**: white pixels a 32×32 cell needs to fill; fewer and the whole cell empties. 4 by default. Only used with spatial blocking.
 - **spatial_blocking**: fill or empty whole 32×32 cells. On by default.
 - **temporal_blocking**: merge each group of 4 frames in H3's reels. On by default.
@@ -18,7 +18,7 @@ Always:
 
 1. **Trim** to the largest 17n + 5 frame count: 23–38 frames become 22, 40–55 become 39, and so on. Fewer than 5 is an error.
 2. **Resize** each side down to a multiple of 32: 1000×563 becomes 992×544. Scaled, not cropped.
-3. **Binarise** at **binarize threshold**.
+3. **Binarise** at **binarize_threshold**.
 
 Then, each switchable:
 

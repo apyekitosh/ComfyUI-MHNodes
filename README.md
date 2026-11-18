@@ -12,7 +12,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Crop Image and Mask** | `MHNodes/image` | Crops an image and/or a mask to a fixed size by alignment and offset, returning paste coordinates. |
 | **Composite Image Masked** | `MHNodes/image` | Pastes a foreground onto a background with separate canvas-space and foreground-space masks. |
 | **Empty Mask** | `MHNodes/mask` | Solid-value mask with a batch size, which the core node lacks. |
-| **Blockify Mask to Grid** | `MHNodes/mask` | Snaps a mask onto MiniMax H3's latent grid in space and time, to stop moving masks bleeding. |
+| **Blockify Mask to H3 Grid** | `MHNodes/mask` | Snaps a mask onto MiniMax H3's latent grid in space and time, to stop moving masks bleeding. |
 | **Mask Track Crop** | `MHNodes/mask` | Cuts a fixed-size window that follows an animated mask, with gap filling and path smoothing. |
 | **Mask Track Stitch** | `MHNodes/mask` | Pastes processed crops back into the original frames, with fades and resolution matching. |
 | **Trail Masks** | `MHNodes/mask` | Merges each mask frame with the previous N, optionally fading, for motion trails. |
