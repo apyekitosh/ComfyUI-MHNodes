@@ -3,7 +3,7 @@
 How the H3 video VAE lays out time decides everything here. It encodes in independent reels of
 17 frames, each packed as 1 + 4 + 4 + 4 + 4 frames into 5 latent frames. A slice of a latent that
 starts on a reel boundary is bit-identical to encoding those frames on their own; a slice from
-anywhere else is something no encode would produce. Both nodes therefore only ever cut on reel
+anywhere else is something no encode would produce. These nodes therefore only ever cut on reel
 boundaries, which for a 17n+5 video means a tail of 5, 22, 39... frames.
 
 Audio has no reels: its encoder remembers everything before each latent frame, so a sliced audio
@@ -354,3 +354,86 @@ class MiniMaxH3ExtendLatent(io.ComfyNode):
             "noise_mask": join_parts(video_mask, audio_mask),
         }
         return io.NodeOutput(out, length, overlap)
+
+
+class MiniMaxH3RefineLatent(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MH_MiniMaxH3RefineLatent",
+            display_name="Refine MiniMax H3 Latent",
+            category="MHNodes/minimax",
+            description=(
+                "Prepares an existing continuation for a second pass: replaces its beginning "
+                "with the refined previous segment's tail and holds that overlap fixed with a "
+                "noise mask. The remaining current samples are preserved for refinement.\n\n"
+                "Both segments must already share this overlap and have matching resolution. "
+                "No decoding or re-encoding is needed. Audio is replaced and masked too, if present."
+            ),
+            inputs=[
+                io.Latent.Input("previous", tooltip="The already refined previous segment."),
+                io.Latent.Input("current", tooltip="The existing continuation to refine, including "
+                                "its overlap with the previous segment."),
+                _grid_input("overlap", 22, "Shared pixel frames: 5, 22, 39... (17n + 5). "
+                            "Snapped down and limited to what both segments hold."),
+            ],
+            outputs=[
+                io.Latent.Output(id="latent", display_name="latent",
+                                 tooltip="Current segment with the refined overlap replaced and "
+                                         "masked 0; the rest is masked 1 for refinement."),
+                io.Int.Output(id="overlap", display_name="overlap",
+                              tooltip="Corrected pixel-frame overlap. Feed to Join MiniMax H3 Latents."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, previous, current, overlap) -> io.NodeOutput:
+        source, source_audio = split(previous, "previous")
+        target, target_audio = split(current, "current")
+        if source.shape[:2] != target.shape[:2] or source.shape[3:] != target.shape[3:]:
+            raise ValueError(
+                f"The segments must have matching batch, channels and resolution: "
+                f"{tuple(source.shape)} and {tuple(target.shape)}."
+            )
+        if (source_audio is None) != (target_audio is None):
+            raise ValueError("One segment has audio and the other doesn't. Use two video-only "
+                             "latents or two audio-video latents.")
+
+        source_frames = pixel_frames(source.shape[2])
+        target_frames = pixel_frames(target.shape[2])
+        if not valid_tail(source_frames) or not valid_tail(target_frames):
+            raise ValueError("Both segments must have H3 lengths of 5, 22, 39... pixel frames "
+                             "so the previous tail starts on a reel boundary.")
+        overlap = snap_down(min(snap_down(overlap, "overlap"), source_frames, target_frames),
+                            "overlap")
+        kept = latent_frames_for(overlap)
+
+        new_video = target.clone()
+        new_video[:, :, :kept] = source[:, :, -kept:]
+        batch, _, total, height, width = target.shape
+        video_mask = target.new_ones((batch, 1, total, height, width))
+        video_mask[:, :, :kept] = 0.0
+
+        new_audio = audio_mask = None
+        if target_audio is not None:
+            if source_audio.shape[:-1] != target_audio.shape[:-1]:
+                raise ValueError(
+                    f"The audio streams must have matching non-temporal dimensions: "
+                    f"{tuple(source_audio.shape)} and {tuple(target_audio.shape)}."
+                )
+            # Same rounded start as Extend: carry its audio tail forward without a codec pass.
+            start = round((source_frames - overlap) * AUDIO_PER_FRAME)
+            tail = source_audio[..., start:]
+            keep_audio = min(tail.shape[-1], target_audio.shape[-1])
+            if keep_audio < 1:
+                raise ValueError("The previous segment has no audio at the overlap's start.")
+            new_audio = target_audio.clone()
+            new_audio[..., :keep_audio] = tail[..., :keep_audio]
+            audio_mask = target_audio.new_ones((target_audio.shape[0], 1)
+                                              + tuple(target_audio.shape[2:]))
+            audio_mask[..., :keep_audio] = 0.0
+
+        out = current.copy()
+        out["samples"] = join_parts(new_video, new_audio)
+        out["noise_mask"] = join_parts(video_mask, audio_mask)
+        return io.NodeOutput(out, overlap)

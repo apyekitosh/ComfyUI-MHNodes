@@ -12,7 +12,12 @@ from .mask_grid import BlockifyMaskToGrid
 from .mask_ops import EmptyMask, TrailMasks
 from .mask_track import MaskTrackCrop, MaskTrackStitch
 from .math_ops import QuickMath
-from .minimax_h3 import MiniMaxH3AddLatentGuide, MiniMaxH3ExtendLatent, MiniMaxH3JoinLatents
+from .minimax_h3 import (
+    MiniMaxH3AddLatentGuide,
+    MiniMaxH3ExtendLatent,
+    MiniMaxH3JoinLatents,
+    MiniMaxH3RefineLatent,
+)
 from .model_int import ModelCompatibleInt
 from .morphology import ErodeDilate
 from .padding import PadFrameCount, PadFrameCountAdvanced
@@ -43,6 +48,7 @@ __all__ = [
     "MiniMaxH3AddLatentGuide",
     "MiniMaxH3ExtendLatent",
     "MiniMaxH3JoinLatents",
+    "MiniMaxH3RefineLatent",
     "ModelCompatibleInt",
     "PadFrameCount",
     "PadFrameCountAdvanced",
