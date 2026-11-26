@@ -30,6 +30,8 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Execution Flow Controller** | `MHNodes/utils` | Passes two values through unchanged, to force the order nodes run in. |
 | **Model Compatible Int** | `MHNodes/utils` | Rounds a resolution or frame count onto a model's grid, with the latent count. |
 | **Add Latent Guide for MiniMax H3** | `MHNodes/minimax` | Guides a new take with the end of a previous one, straight from its latent. |
+| **MiniMax H3 Latent Info** | `MHNodes/minimax` | Reports pixel width, height, frames and seconds, displayed beside the output sockets. |
+| **Add Audio to H3 Latent** | `MHNodes/minimax` | Adds empty, fully denoisable audio to a video-only H3 latent, preserving the video mask. |
 | **Extend MiniMax H3 Latent** | `MHNodes/minimax` | Continues a take by masking: keeps its tail fixed, generates the frames after it. |
 | **Refine MiniMax H3 Latent** | `MHNodes/minimax` | Replaces an existing continuation's overlap with the refined previous tail, masking it for a second pass. |
 | **Join MiniMax H3 Latents** | `MHNodes/minimax` | Joins a take and its continuation into one latent, cut on a reel boundary. |

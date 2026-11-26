@@ -13,9 +13,11 @@ from .mask_ops import EmptyMask, TrailMasks
 from .mask_track import MaskTrackCrop, MaskTrackStitch
 from .math_ops import QuickMath
 from .minimax_h3 import (
+    MiniMaxH3AddAudio,
     MiniMaxH3AddLatentGuide,
     MiniMaxH3ExtendLatent,
     MiniMaxH3JoinLatents,
+    MiniMaxH3LatentInfo,
     MiniMaxH3RefineLatent,
 )
 from .model_int import ModelCompatibleInt
@@ -46,8 +48,10 @@ __all__ = [
     "MaskTrackCrop",
     "MaskTrackStitch",
     "MiniMaxH3AddLatentGuide",
+    "MiniMaxH3AddAudio",
     "MiniMaxH3ExtendLatent",
     "MiniMaxH3JoinLatents",
+    "MiniMaxH3LatentInfo",
     "MiniMaxH3RefineLatent",
     "ModelCompatibleInt",
     "PadFrameCount",

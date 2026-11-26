@@ -80,6 +80,80 @@ def join_parts(video: torch.Tensor, audio: torch.Tensor | None):
     return comfy.nested_tensor.NestedTensor((video, audio))
 
 
+class MiniMaxH3LatentInfo(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MH_MiniMaxH3LatentInfo",
+            display_name="MiniMax H3 Latent Info",
+            category="MHNodes/minimax",
+            description=(
+                "Reports H3 width, height and frame count in pixel space, plus duration at "
+                "24 fps. Values appear beside the output sockets after execution. "
+                "The latent passes through unchanged; supports video-only and AV latents."
+            ),
+            is_output_node=True,
+            inputs=[io.Latent.Input("latent")],
+            outputs=[
+                io.Latent.Output(id="latent", display_name="latent"),
+                io.Int.Output(id="width", display_name="width", tooltip="Width in pixels."),
+                io.Int.Output(id="height", display_name="height", tooltip="Height in pixels."),
+                io.Int.Output(id="frames", display_name="frames", tooltip="Pixel-frame count."),
+                io.Float.Output(id="seconds", display_name="seconds", tooltip="Duration at 24 fps."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, latent) -> io.NodeOutput:
+        video, _ = split(latent, "latent")
+        width, height = video.shape[4] * 16, video.shape[3] * 16
+        frames = pixel_frames(video.shape[2])
+        seconds = frames / FPS
+        return io.NodeOutput(latent, width, height, frames, seconds, ui={
+            "width": [width], "height": [height], "frames": [frames], "seconds": [seconds],
+        })
+
+
+class MiniMaxH3AddAudio(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="MH_MiniMaxH3AddAudio",
+            display_name="Add Audio to H3 Latent",
+            category="MHNodes/minimax",
+            description=(
+                "Adds a zero-filled H3 audio stream matching a video-only latent's duration, "
+                "ready for full denoising. Preserves the video samples, metadata and any video "
+                "noise mask. The new audio is fully unmasked."
+            ),
+            inputs=[io.Latent.Input("latent", tooltip="A video-only MiniMax H3 latent.")],
+            outputs=[io.Latent.Output(id="latent", display_name="latent")],
+        )
+
+    @classmethod
+    def execute(cls, latent) -> io.NodeOutput:
+        video, existing_audio = split(latent, "latent")
+        if existing_audio is not None:
+            raise ValueError("The latent already has an audio stream. Add Audio to H3 Latent "
+                             "expects a video-only latent.")
+        frames = pixel_frames(video.shape[2])
+        if frames < 1:
+            raise ValueError("The video latent has no frames to add audio to.")
+        # Matches core's _av_latent: stereo audio with 32 channels at 40 latent frames/second.
+        audio = video.new_zeros((video.shape[0], 32, 2, audio_length(frames)))
+        out = latent.copy()
+        out["samples"] = join_parts(video, audio)
+        video_mask = latent.get("noise_mask")
+        if video_mask is not None:
+            if getattr(video_mask, "is_nested", False):
+                video_mask = video_mask.unbind()[0]
+            # A plain video mask would otherwise be fitted to BOTH streams by the sampler.
+            # All ones on audio means no restriction, while retaining the exact video mask.
+            audio_mask = audio.new_ones((audio.shape[0], 1, 2, audio.shape[-1]))
+            out["noise_mask"] = join_parts(video_mask, audio_mask)
+        return io.NodeOutput(out)
+
+
 def _encode_audio_tail(audio_vae, audio: torch.Tensor, start_frame: int) -> torch.Tensor:
     """Decode the whole audio, cut the waveform at the exact instant, encode the tail fresh.
 
