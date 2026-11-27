@@ -2,6 +2,7 @@ from .batch import ImageMaskFromBatch, ImageMaskFromTail
 from .batch_decode import VAEDecodeDirectory
 from .composite import CompositeImageMasked
 from .crop import CropImageAndMask
+from .depth_normal import DepthToNormal
 from .flow import ExecutionFlowController
 from .gradient import LinearGradientFromCoords
 from .image_io import SaveImageSequence
@@ -33,6 +34,7 @@ __all__ = [
     "BlockifyMaskToGrid",
     "CompositeImageMasked",
     "CropImageAndMask",
+    "DepthToNormal",
     "EmptyMask",
     "ErodeDilate",
     "ExecutionFlowController",

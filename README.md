@@ -11,6 +11,7 @@ Simple, general-purpose custom nodes for ComfyUI, built on the V3 node API
 | **Linear Gradient from Coords** | `MHNodes/generate` | Generates a black-to-white linear gradient defined by two points. |
 | **Crop Image and Mask** | `MHNodes/image` | Crops an image and/or a mask to a fixed size by alignment and offset, returning paste coordinates. |
 | **Composite Image Masked** | `MHNodes/image` | Pastes a foreground onto a background with separate canvas-space and foreground-space masks. |
+| **Depth to Normal** | `MHNodes/image` | Creates RGB normal maps from depth gradients, with strength, depth inversion and green-channel flip. Pure torch. |
 | **Empty Mask** | `MHNodes/mask` | Solid-value mask with a batch size, which the core node lacks. |
 | **Blockify Mask to H3 Grid** | `MHNodes/mask` | Snaps a mask onto MiniMax H3's latent grid in space and time, to stop moving masks bleeding. |
 | **Mask Track Crop** | `MHNodes/mask` | Cuts a fixed-size window that follows an animated mask, with gap filling and path smoothing. |
@@ -83,6 +84,7 @@ ComfyUI-MHNodes/
     batch_decode.py  # decode a folder of latents
     composite.py     # compositing
     crop.py          # cropping
+    depth_normal.py  # screen-space depth-to-normal conversion
     flow.py          # execution order
     gradient.py      # generators
     image_io.py      # file I/O
